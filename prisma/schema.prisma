@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PaymentMethod {
+  MTN_MOMO
+  TELECEL_CASH
+  AIRTELTIGO_MONEY
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PayoutStatus {
+  SCHEDULED
+  PAID
+  CANCELLED
+}
+
+enum CycleStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  PAYMENT_VERIFIED
+  PAYMENT_REJECTED
+  PAYOUT_COMPLETED
+  GENERAL
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  phone        String   @unique
+  passwordHash String
+  fullName     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Member {
+  id               String       @id @default(cuid())
+  fullName         String
+  phone            String       @unique
+  whatsappNumber   String?
+  ghanaCardNumber  String       @unique
+  dateOfBirth      DateTime
+  address          String
+  emergencyContact String
+  passwordHash     String
+  status           MemberStatus @default(ACTIVE)
+  preferredPayoutWeek Int?
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id])
+
+  payments      Payment[]
+  payouts       Payout[]
+  payoutWeeks   Week[]         @relation("PayoutWeekAssignment")
+  notifications Notification[]
+  notes         AdminNote[]
+
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+}
+
+model Group {
+  id                 String   @id @default(cuid())
+  contributionAmount Decimal  @db.Decimal(10, 2)
+  maxMembers         Int      @default(20)
+  cycleLengthWeeks   Int      @default(20)
+
+  members Member[]
+  cycles  GroupCycle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contributionAmount])
+}
+
+model GroupCycle {
+  id          String      @id @default(cuid())
+  groupId     String
+  group       Group       @relation(fields: [groupId], references: [id])
+  cycleNumber Int
+  startDate   DateTime
+  status      CycleStatus @default(ACTIVE)
+
+  weeks    Week[]
+  payments Payment[]
+  payouts  Payout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, cycleNumber])
+}
+
+model Week {
+  id         String     @id @default(cuid())
+  cycleId    String
+  cycle      GroupCycle @relation(fields: [cycleId], references: [id])
+  weekNumber Int
+  dueDate    DateTime
+
+  payoutMemberId String?
+  payoutMember   Member? @relation("PayoutWeekAssignment", fields: [payoutMemberId], references: [id])
+
+  payments Payment[]
+  payouts  Payout[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([cycleId, weekNumber])
+}
+
+model Payment {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id])
+
+  cycleId String
+  cycle   GroupCycle @relation(fields: [cycleId], references: [id])
+
+  weekId String
+  week   Week   @relation(fields: [weekId], references: [id])
+
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentDate   DateTime
+  transactionId String?
+  receiptUrl    String?
+
+  status          PaymentStatus @default(PENDING)
+  rejectionReason String?
+  verifiedAt      DateTime?
+
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([memberId])
+  @@index([weekId])
+  @@index([cycleId])
+  @@index([status])
+}
+
+model Payout {
+  id String @id @default(cuid())
+
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id])
+
+  cycleId String
+  cycle   GroupCycle @relation(fields: [cycleId], references: [id])
+
+  weekId String
+  week   Week   @relation(fields: [weekId], references: [id])
+
+  expectedAmount Decimal  @db.Decimal(10, 2)
+  actualAmount   Decimal? @db.Decimal(10, 2)
+
+  status PayoutStatus @default(SCHEDULED)
+  paidAt DateTime?
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, weekId])
+  @@index([memberId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  memberId  String
+  member    Member           @relation(fields: [memberId], references: [id])
+  type      NotificationType
+  title     String
+  message   String
+  relatedId String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([memberId])
+}
+
+model AdminNote {
+  id        String   @id @default(cuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id])
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([memberId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorType  String
+  action     String
+  targetType String?
+  targetId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetId])
+}
