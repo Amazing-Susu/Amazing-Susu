@@ -3,11 +3,48 @@ import { useState } from "react";
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [email, setEmail] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Login failed");
+        setLoading(false);
+        return;
+      }
+
+      setAdminName(data.admin.fullName);
+      setLoggedIn(true);
+    } catch (err) {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (loggedIn) {
-    return <AdminDashboard onLogout={() => setLoggedIn(false)} />;
+    return <AdminDashboard adminName={adminName} onLogout={async () => {
+      await fetch("/api/admin/logout", { method: "POST" });
+      setLoggedIn(false);
+      setIdentifier("");
+      setPassword("");
+    }} />;
   }
 
   return (
@@ -24,18 +61,18 @@ export default function AdminPage() {
           <p className="text-sm text-slate-500 mt-1">Administrator Login</p>
         </div>
 
-        <div className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-700">
               Email or Phone Number
             </label>
             <input
               type="text"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               placeholder="admin@amazingsusu.com"
+              required
               className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2"
-              style={{ outlineColor: "#16a34a" }}
             />
           </div>
           <div>
@@ -47,26 +84,42 @@ export default function AdminPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              required
               className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2"
             />
           </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+              {error}
+            </div>
+          )}
+
           <button
-            onClick={() => setLoggedIn(true)}
-            className="w-full text-white font-semibold py-3 rounded-xl transition"
+            type="submit"
+            disabled={loading}
+            className="w-full text-white font-semibold py-3 rounded-xl transition disabled:opacity-60"
             style={{ backgroundColor: "#16a34a" }}
           >
-            Sign In
+            {loading ? "Signing in…" : "Sign In"}
           </button>
-          <p className="text-xs text-center text-slate-400">
-            Real authentication arrives in the next stage.
-          </p>
-        </div>
+        </form>
+
+        <p className="text-xs text-center text-slate-400 mt-4">
+          Authorized personnel only.
+        </p>
       </div>
     </div>
   );
 }
 
-function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+function AdminDashboard({
+  adminName,
+  onLogout,
+}: {
+  adminName: string;
+  onLogout: () => void;
+}) {
   const kpis = [
     {
       label: "Total Members",
@@ -166,7 +219,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <main className="flex-1 overflow-auto">
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <h1 className="font-bold text-lg text-slate-800">
-            👋 Welcome, Admin
+            👋 Welcome, {adminName}
           </h1>
           <div className="flex items-center gap-3">
             <span className="text-2xl">🔔</span>
@@ -174,7 +227,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold"
               style={{ backgroundColor: "#16a34a" }}
             >
-              A
+              {adminName.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
