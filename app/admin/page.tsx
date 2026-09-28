@@ -339,9 +339,6 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
           <div className="text-5xl mb-3">👥</div>
           <h3 className="font-bold text-slate-800 mb-1">No members yet</h3>
           <p className="text-sm text-slate-500 mb-6">Members you add will appear here.</p>
-          <button className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>
-            + Add Your First Member
-          </button>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -588,20 +585,9 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
 
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Admin Notes</h3>
-        {m.notes.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 text-sm">
-            No notes yet. Notes feature coming soon.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {m.notes.map((n) => (
-              <div key={n.id} className="border-l-4 border-green-400 pl-3 py-1">
-                <div className="text-sm text-slate-800">{n.note}</div>
-                <div className="text-xs text-slate-400">{new Date(n.createdAt).toLocaleDateString()}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="text-center py-8 text-slate-400 text-sm">
+          No notes yet. Notes feature coming soon.
+        </div>
       </div>
     </div>
   );
