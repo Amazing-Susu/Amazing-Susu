@@ -64,7 +64,7 @@ model Member {
   fullName            String
   phone               String       @unique
   whatsappNumber      String?
-  ghanaCardNumber     String       @unique
+ ghanaCardNumber  String?      @unique
   dateOfBirth         DateTime
   address             String
   emergencyContact    String
