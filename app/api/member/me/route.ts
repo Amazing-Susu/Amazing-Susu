@@ -4,9 +4,7 @@ import { getCurrentMember } from "@/lib/session";
 
 export async function GET() {
   const session = await getCurrentMember();
-  if (!session) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const member = await prisma.member.findUnique({
     where: { id: session.id as string },
@@ -22,12 +20,11 @@ export async function GET() {
         },
       },
       payments: { orderBy: { submittedAt: "desc" }, take: 100 },
+      payouts: { orderBy: { createdAt: "desc" } },
     },
   });
 
-  if (!member) {
-    return NextResponse.json({ error: "Member not found" }, { status: 404 });
-  }
+  if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
   const contributionAmount = Number(member.group.contributionAmount);
   const expectedPayout = 20 * contributionAmount - 50;
@@ -44,17 +41,11 @@ export async function GET() {
 
   const weeklyStatus = (cycle?.weeks || []).map((w) => {
     const weekPayments = member.payments.filter((p) => p.weekId === w.id);
-    const verified = weekPayments
-      .filter((p) => p.status === "VERIFIED")
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-    const pending = weekPayments
-      .filter((p) => p.status === "PENDING")
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-
+    const verified = weekPayments.filter((p) => p.status === "VERIFIED").reduce((s, p) => s + Number(p.amount), 0);
+    const pending = weekPayments.filter((p) => p.status === "PENDING").reduce((s, p) => s + Number(p.amount), 0);
     let status: "NOT_PAID" | "PARTIAL" | "FULL" = "NOT_PAID";
     if (verified >= contributionAmount) status = "FULL";
     else if (verified > 0 || pending > 0) status = "PARTIAL";
-
     return {
       weekNumber: w.weekNumber,
       weekId: w.id,
@@ -65,6 +56,10 @@ export async function GET() {
       status,
     };
   });
+
+  // Payout info (never expose which week is assigned)
+  const paidPayout = member.payouts.find((p) => p.status === "PAID");
+  const scheduledPayout = member.payouts.find((p) => p.status === "SCHEDULED");
 
   return NextResponse.json({
     member: {
@@ -86,5 +81,14 @@ export async function GET() {
       paymentDate: p.paymentDate.toISOString(),
       rejectionReason: p.rejectionReason,
     })),
+    payoutStatus: paidPayout
+      ? {
+          state: "RECEIVED",
+          amount: Number(paidPayout.actualAmount || paidPayout.expectedAmount),
+          paidAt: paidPayout.paidAt?.toISOString() || null,
+        }
+      : scheduledPayout
+      ? { state: "SCHEDULED", amount: Number(scheduledPayout.expectedAmount) }
+      : { state: "PENDING", amount: expectedPayout },
   });
 }
