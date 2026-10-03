@@ -327,7 +327,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    fullName: "", phone: "", whatsappNumber: "", ghanaCardNumber: "",
+    fullName: "", phone: "", whatsappNumber: "",
     dateOfBirth: "", address: "", emergencyContact: "", password: "",
     groupId: "", preferredPayoutWeek: "",
   });
@@ -371,11 +371,11 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
             <Field label="Full Name *"><input type="text" required value={form.fullName} onChange={(e) => update("fullName", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
             <Field label="Phone Number *"><input type="text" required value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="0551234567" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
             <Field label="WhatsApp Number"><input type="text" value={form.whatsappNumber} onChange={(e) => update("whatsappNumber", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
-            <Field label="Ghana Card Number *"><input type="text" required value={form.ghanaCardNumber} onChange={(e) => update("ghanaCardNumber", e.target.value)} placeholder="GHA-123456789-0" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
             <Field label="Date of Birth *"><input type="date" required value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
             <Field label="Emergency Contact *"><input type="text" required value={form.emergencyContact} onChange={(e) => update("emergencyContact", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="Address *"><input type="text" required value={form.address} onChange={(e) => update("address", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
           </div>
-          <Field label="Address *"><input type="text" required value={form.address} onChange={(e) => update("address", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Contribution Group *">
               {loadingGroups ? (<div className="text-slate-400 text-sm py-2">Loading groups…</div>) : (
@@ -391,7 +391,9 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
             </Field>
             <Field label="Preferred Payout Week (optional)"><input type="number" min="1" max="20" value={form.preferredPayoutWeek} onChange={(e) => update("preferredPayoutWeek", e.target.value)} placeholder="1–20" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
           </div>
+
           <Field label="Login Password * (for the member)"><input type="text" required minLength={6} value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="Min 6 characters" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+
           {selectedGroup && (
             <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
               <div className="font-semibold mb-1" style={{ color: "#15803d" }}>Preview</div>
@@ -402,6 +404,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
               </div>
             </div>
           )}
+
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
@@ -426,7 +429,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 type MemberDetail = {
   id: string; fullName: string; phone: string;
-  whatsappNumber: string | null; ghanaCardNumber: string; dateOfBirth: string;
+  whatsappNumber: string | null; dateOfBirth: string;
   address: string; emergencyContact: string; status: string;
   preferredPayoutWeek: number | null; joinedAt: string;
   group: { id: string; contributionAmount: string; maxMembers: number };
@@ -456,6 +459,7 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   return (
     <div className="space-y-6">
       <button onClick={onBack} className="text-sm font-semibold text-green-700 hover:underline">← Back to Members</button>
+
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-6" style={{ background: "linear-gradient(135deg, #16a34a, #15803d)" }}>
           <div className="flex items-center gap-4">
@@ -471,7 +475,6 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
         </div>
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           <div><div className="text-xs text-slate-400 uppercase font-semibold">WhatsApp</div><div className="text-slate-800">{m.whatsappNumber || "—"}</div></div>
-          <div><div className="text-xs text-slate-400 uppercase font-semibold">Ghana Card</div><div className="text-slate-800">{m.ghanaCardNumber}</div></div>
           <div><div className="text-xs text-slate-400 uppercase font-semibold">Date of Birth</div><div className="text-slate-800">{new Date(m.dateOfBirth).toLocaleDateString()}</div></div>
           <div><div className="text-xs text-slate-400 uppercase font-semibold">Address</div><div className="text-slate-800">{m.address}</div></div>
           <div><div className="text-xs text-slate-400 uppercase font-semibold">Emergency Contact</div><div className="text-slate-800">{m.emergencyContact}</div></div>
@@ -483,11 +486,13 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
           <button className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-red-200 text-red-600">⏸️ Deactivate</button>
         </div>
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm"><div className="text-xs text-slate-400 uppercase font-semibold mb-1">Group</div><div className="text-2xl font-bold text-slate-800">GH₵{m.group.contributionAmount}</div></div>
         <div className="bg-white rounded-2xl p-5 shadow-sm"><div className="text-xs text-slate-400 uppercase font-semibold mb-1">Preferred Payout Week</div><div className="text-2xl font-bold text-slate-800">{m.preferredPayoutWeek ? `Week ${m.preferredPayoutWeek}` : "—"}</div></div>
         <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: "#f0fdf4" }}><div className="text-xs font-semibold uppercase mb-1" style={{ color: "#15803d" }}>Expected Payout</div><div className="text-2xl font-bold" style={{ color: "#052e16" }}>GH₵{m.expectedPayout.toLocaleString()}</div></div>
       </div>
+
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Payment History</h3>
         {m.payments.length === 0 ? (
@@ -515,10 +520,12 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
           </div>
         )}
       </div>
+
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Payout History</h3>
         <div className="text-center py-8 text-slate-400 text-sm">No payouts yet.</div>
       </div>
+
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Admin Notes</h3>
         <div className="text-center py-8 text-slate-400 text-sm">No notes yet. Notes feature coming soon.</div>
@@ -527,21 +534,11 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   );
 }
 
-// ==================== APPROVALS VIEW ====================
-
 type PendingPayment = {
-  id: string;
-  reference: string;
-  amount: number;
-  method: string;
-  submittedAt: string;
-  paymentDate: string;
-  transactionId: string | null;
-  memberId: string;
-  memberName: string;
-  memberPhone: string;
-  groupAmount: number;
-  weekNumber: number;
+  id: string; reference: string; amount: number; method: string;
+  submittedAt: string; paymentDate: string; transactionId: string | null;
+  memberId: string; memberName: string; memberPhone: string;
+  groupAmount: number; weekNumber: number;
 };
 
 function ApprovalsView({ onChanged }: { onChanged: () => void }) {
@@ -561,10 +558,7 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  function reload() {
-    setRefreshKey((k) => k + 1);
-    onChanged();
-  }
+  function reload() { setRefreshKey((k) => k + 1); onChanged(); }
 
   async function handleVerify(payment: PendingPayment) {
     setBusyId(payment.id);
@@ -589,9 +583,7 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Pending Verification</h2>
-          <p className="text-sm text-slate-500">
-            {payments.length} payment{payments.length === 1 ? "" : "s"} awaiting your review
-          </p>
+          <p className="text-sm text-slate-500">{payments.length} payment{payments.length === 1 ? "" : "s"} awaiting your review</p>
         </div>
         <button onClick={reload} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700">↻ Refresh</button>
       </div>
@@ -617,49 +609,21 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
                       <div className="text-xs text-slate-500">{p.memberPhone} • Week {p.weekNumber} • GH₵{p.groupAmount} group</div>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                    <div>
-                      <div className="text-xs text-slate-400 uppercase font-semibold">Amount</div>
-                      <div className="font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400 uppercase font-semibold">Method</div>
-                      <div className="text-slate-800">{p.method.replace(/_/g, " ")}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400 uppercase font-semibold">Reference</div>
-                      <div className="font-mono text-xs text-slate-700">{p.reference}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400 uppercase font-semibold">Submitted</div>
-                      <div className="text-slate-700 text-xs">{new Date(p.submittedAt).toLocaleString()}</div>
-                    </div>
+                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Amount</div><div className="font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</div></div>
+                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Method</div><div className="text-slate-800">{p.method.replace(/_/g, " ")}</div></div>
+                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Reference</div><div className="font-mono text-xs text-slate-700">{p.reference}</div></div>
+                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Submitted</div><div className="text-slate-700 text-xs">{new Date(p.submittedAt).toLocaleString()}</div></div>
                   </div>
-
                   {p.transactionId && (
-                    <div className="mt-3 text-xs text-slate-500">
-                      <span className="uppercase font-semibold text-slate-400">Member-supplied ref:</span> {p.transactionId}
-                    </div>
+                    <div className="mt-3 text-xs text-slate-500"><span className="uppercase font-semibold text-slate-400">Member-supplied ref:</span> {p.transactionId}</div>
                   )}
                 </div>
-
                 <div className="flex sm:flex-col gap-2 sm:w-32">
-                  <button
-                    onClick={() => handleVerify(p)}
-                    disabled={busyId === p.id}
-                    className="flex-1 text-white font-semibold py-2.5 rounded-xl disabled:opacity-60"
-                    style={{ backgroundColor: "#16a34a" }}
-                  >
+                  <button onClick={() => handleVerify(p)} disabled={busyId === p.id} className="flex-1 text-white font-semibold py-2.5 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
                     {busyId === p.id ? "…" : "✓ Verify"}
                   </button>
-                  <button
-                    onClick={() => setRejectPayment(p)}
-                    disabled={busyId === p.id}
-                    className="flex-1 font-semibold py-2.5 rounded-xl border-2 border-red-200 text-red-600 disabled:opacity-60"
-                  >
-                    ✕ Reject
-                  </button>
+                  <button onClick={() => setRejectPayment(p)} disabled={busyId === p.id} className="flex-1 font-semibold py-2.5 rounded-xl border-2 border-red-200 text-red-600 disabled:opacity-60">✕ Reject</button>
                 </div>
               </div>
             </div>
@@ -668,11 +632,7 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
       )}
 
       {rejectPayment && (
-        <RejectModal
-          payment={rejectPayment}
-          onClose={() => setRejectPayment(null)}
-          onSuccess={() => { setRejectPayment(null); reload(); }}
-        />
+        <RejectModal payment={rejectPayment} onClose={() => setRejectPayment(null)} onSuccess={() => { setRejectPayment(null); reload(); }} />
       )}
     </div>
   );
@@ -686,10 +646,7 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!reason.trim()) {
-      setError("A rejection reason is required.");
-      return;
-    }
+    if (!reason.trim()) { setError("A rejection reason is required."); return; }
     setSubmitting(true);
     try {
       const res = await fetch("/api/admin/payments/reject", {
@@ -718,22 +675,12 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
             <div className="font-semibold mb-1">{payment.memberName}</div>
             <div>GH₵{payment.amount.toLocaleString()} • {payment.reference}</div>
           </div>
-
           <div>
             <label className="text-sm font-semibold text-slate-700">Reason for rejection *</label>
-            <textarea
-              required
-              rows={4}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Example: Payment reference could not be confirmed in our MoMo account."
-              className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 resize-none"
-            />
+            <textarea required rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Example: Payment reference could not be confirmed in our MoMo account." className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 resize-none" />
             <div className="text-xs text-slate-500 mt-1">The member will see this reason and receive a notification.</div>
           </div>
-
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
             <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#dc2626" }}>
