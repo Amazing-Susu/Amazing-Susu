@@ -13,12 +13,7 @@ export default function AdminPage() {
   useEffect(() => {
     fetch("/api/admin/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.admin) {
-          setAdminName(d.admin.fullName);
-          setLoggedIn(true);
-        }
-      })
+      .then((d) => { if (d?.admin) { setAdminName(d.admin.fullName); setLoggedIn(true); } })
       .finally(() => setChecking(false));
   }, []);
 
@@ -35,17 +30,9 @@ export default function AdminPage() {
     setCurrentView(view);
   }
 
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f0fdf4, #d1fae5)" }}>
-        <div className="text-slate-500">Loading…</div>
-      </div>
-    );
-  }
+  if (checking) return <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f0fdf4, #d1fae5)" }}><div className="text-slate-500">Loading…</div></div>;
 
-  if (!loggedIn) {
-    return <AdminLogin onSuccess={(name) => { setAdminName(name); setLoggedIn(true); }} />;
-  }
+  if (!loggedIn) return <AdminLogin onSuccess={(name) => { setAdminName(name); setLoggedIn(true); }} />;
 
   return (
     <AdminShell
@@ -61,18 +48,15 @@ export default function AdminPage() {
       }}
     >
       {currentView === "dashboard" && <DashboardView adminName={adminName} />}
-      {currentView === "members" && !selectedMemberId && (
-        <MembersView onViewMember={setSelectedMemberId} />
-      )}
+      {currentView === "members" && !selectedMemberId && <MembersView onViewMember={setSelectedMemberId} />}
       {currentView === "members" && selectedMemberId && (
-        <MemberDetailView memberId={selectedMemberId} onBack={() => setSelectedMemberId(null)} />
+        <MemberDetailView
+          memberId={selectedMemberId}
+          onBack={() => { setSelectedMemberId(null); setRefreshKey((k) => k + 1); }}
+        />
       )}
-      {currentView === "approvals" && (
-        <ApprovalsView onChanged={() => setRefreshKey((k) => k + 1)} />
-      )}
-      {currentView !== "dashboard" && currentView !== "members" && currentView !== "approvals" && (
-        <ComingSoon view={currentView} />
-      )}
+      {currentView === "approvals" && <ApprovalsView onChanged={() => setRefreshKey((k) => k + 1)} />}
+      {currentView !== "dashboard" && currentView !== "members" && currentView !== "approvals" && <ComingSoon view={currentView} />}
     </AdminShell>
   );
 }
@@ -85,21 +69,13 @@ function AdminLogin({ onSuccess }: { onSuccess: (name: string) => void }) {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    setError(""); setLoading(true);
     try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, password }),
-      });
+      const res = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier, password }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
       onSuccess(data.admin.fullName);
-    } catch {
-      setError("Network error. Please try again.");
-      setLoading(false);
-    }
+    } catch { setError("Network error. Please try again."); setLoading(false); }
   }
 
   return (
@@ -111,34 +87,17 @@ function AdminLogin({ onSuccess }: { onSuccess: (name: string) => void }) {
           <p className="text-sm text-slate-500 mt-1">Administrator Login</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Email or Phone Number</label>
-            <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" />
-          </div>
+          <div><label className="text-sm font-semibold text-slate-700">Email or Phone Number</label><input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
+          <div><label className="text-sm font-semibold text-slate-700">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <button type="submit" disabled={loading} className="w-full text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
-            {loading ? "Signing in…" : "Sign In"}
-          </button>
+          <button type="submit" disabled={loading} className="w-full text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{loading ? "Signing in…" : "Sign In"}</button>
         </form>
       </div>
     </div>
   );
 }
 
-function AdminShell({
-  adminName, currentView, pendingCount, onNavigate, onLogout, children,
-}: {
-  adminName: string;
-  currentView: string;
-  pendingCount: number;
-  onNavigate: (v: string) => void;
-  onLogout: () => void;
-  children: React.ReactNode;
-}) {
+function AdminShell({ adminName, currentView, pendingCount, onNavigate, onLogout, children }: { adminName: string; currentView: string; pendingCount: number; onNavigate: (v: string) => void; onLogout: () => void; children: React.ReactNode; }) {
   const navItems = [
     { id: "dashboard", icon: "🏠", label: "Dashboard" },
     { id: "members", icon: "👥", label: "Members" },
@@ -149,7 +108,6 @@ function AdminShell({
     { id: "reports", icon: "📊", label: "Reports" },
     { id: "settings", icon: "⚙️", label: "Settings" },
   ];
-
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="hidden md:flex flex-col w-60 text-white" style={{ backgroundColor: "#0a3d2a" }}>
@@ -166,35 +124,21 @@ function AdminShell({
           {navItems.map((item) => {
             const active = item.id === currentView;
             return (
-              <button
-                key={item.id}
-                onClick={() => onNavigate(item.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer justify-between text-left"
-                style={active ? { backgroundColor: "#16a34a" } : undefined}
-              >
+              <button key={item.id} onClick={() => onNavigate(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer justify-between text-left" style={active ? { backgroundColor: "#16a34a" } : undefined}>
                 <span className="flex items-center gap-3"><span>{item.icon}</span><span>{item.label}</span></span>
-                {item.badge && item.badge > 0 ? (
-                  <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full">{item.badge}</span>
-                ) : null}
+                {item.badge && item.badge > 0 ? <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full">{item.badge}</span> : null}
               </button>
             );
           })}
         </nav>
-        <div className="p-4 border-t border-white/10">
-          <button onClick={onLogout} className="w-full text-xs opacity-70 hover:opacity-100 text-left">Sign Out →</button>
-        </div>
+        <div className="p-4 border-t border-white/10"><button onClick={onLogout} className="w-full text-xs opacity-70 hover:opacity-100 text-left">Sign Out →</button></div>
       </aside>
-
       <main className="flex-1 overflow-auto">
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-          <span className="font-bold text-lg text-slate-800">
-            {navItems.find((n) => n.id === currentView)?.label || "Dashboard"}
-          </span>
+          <span className="font-bold text-lg text-slate-800">{navItems.find((n) => n.id === currentView)?.label || "Dashboard"}</span>
           <div className="flex items-center gap-3">
             <span className="text-2xl">🔔</span>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>
-              {adminName.charAt(0).toUpperCase()}
-            </div>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>{adminName.charAt(0).toUpperCase()}</div>
             <span className="hidden sm:block text-sm font-semibold text-slate-700">{adminName}</span>
           </div>
         </header>
@@ -213,10 +157,7 @@ function DashboardView({ adminName }: { adminName: string }) {
   ];
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">👋 Welcome, {adminName}</h2>
-        <p className="text-sm text-slate-500">Numbers below will fill in as you add members and receive payments.</p>
-      </div>
+      <div><h2 className="text-2xl font-bold text-slate-800">👋 Welcome, {adminName}</h2><p className="text-sm text-slate-500">Numbers below will fill in as you add members and receive payments.</p></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <div key={kpi.label} className="rounded-2xl p-5 text-white relative overflow-hidden shadow" style={{ background: kpi.color }}>
@@ -260,13 +201,9 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
     <>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Members</h2>
-            <p className="text-sm text-slate-500">{members.length} member{members.length === 1 ? "" : "s"} in your Susu system</p>
-          </div>
+          <div><h2 className="text-2xl font-bold text-slate-800">Members</h2><p className="text-sm text-slate-500">{members.length} member{members.length === 1 ? "" : "s"} in your Susu system</p></div>
           <button onClick={() => setShowAdd(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Add Member</button>
         </div>
-
         {members.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
             <div className="text-5xl mb-3">👥</div>
@@ -279,33 +216,17 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Phone</th>
-                    <th className="px-4 py-3 font-medium">Group</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Joined</th>
-                    <th className="px-4 py-3 font-medium text-right">Action</th>
-                  </tr>
+                  <tr><th className="px-4 py-3 font-medium">Name</th><th className="px-4 py-3 font-medium">Phone</th><th className="px-4 py-3 font-medium">Group</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Joined</th><th className="px-4 py-3 font-medium text-right">Action</th></tr>
                 </thead>
                 <tbody className="text-slate-700">
                   {members.map((m) => (
                     <tr key={m.id} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span>
-                          <span className="font-semibold">{m.fullName}</span>
-                        </div>
-                      </td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-3"><span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span><span className="font-semibold">{m.fullName}</span></div></td>
                       <td className="px-4 py-3 text-slate-600">{m.phone}</td>
                       <td className="px-4 py-3">GH₵{m.groupAmount}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${m.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>{m.status}</span>
-                      </td>
+                      <td className="px-4 py-3"><span className={`text-xs px-2 py-1 rounded-full font-semibold ${m.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>{m.status}</span></td>
                       <td className="px-4 py-3 text-xs text-slate-500">{new Date(m.joinedAt).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => onViewMember(m.id)} className="text-xs font-semibold text-green-700 hover:underline">View →</button>
-                      </td>
+                      <td className="px-4 py-3 text-right"><button onClick={() => onViewMember(m.id)} className="text-xs font-semibold text-green-700 hover:underline">View →</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -326,11 +247,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    fullName: "", phone: "", whatsappNumber: "",
-    dateOfBirth: "", address: "", emergencyContact: "", password: "",
-    groupId: "", preferredPayoutWeek: "",
-  });
+  const [form, setForm] = useState({ fullName: "", phone: "", whatsappNumber: "", dateOfBirth: "", address: "", emergencyContact: "", password: "", groupId: "", preferredPayoutWeek: "" });
 
   useEffect(() => {
     fetch("/api/admin/groups").then((r) => r.json()).then((d) => setGroups(d.groups || [])).catch(() => {}).finally(() => setLoadingGroups(false));
@@ -339,22 +256,13 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
   function update(field: string, value: string) { setForm((f) => ({ ...f, [field]: value })); }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
+    e.preventDefault(); setError(""); setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/members/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await fetch("/api/admin/members/create", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to create member"); setSubmitting(false); return; }
       onSuccess();
-    } catch {
-      setError("Network error. Please try again.");
-      setSubmitting(false);
-    }
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
   }
 
   const selectedGroup = groups.find((g) => g.id === form.groupId);
@@ -375,42 +283,28 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
             <Field label="Emergency Contact *"><input type="text" required value={form.emergencyContact} onChange={(e) => update("emergencyContact", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
             <Field label="Address *"><input type="text" required value={form.address} onChange={(e) => update("address", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Contribution Group *">
               {loadingGroups ? (<div className="text-slate-400 text-sm py-2">Loading groups…</div>) : (
                 <select required value={form.groupId} onChange={(e) => update("groupId", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
                   <option value="">— Select group —</option>
-                  {groups.map((g) => (
-                    <option key={g.id} value={g.id} disabled={g.availableSlots <= 0}>
-                      GH₵{g.contributionAmount} ({g.availableSlots} slots left){g.availableSlots <= 0 ? " — FULL" : ""}
-                    </option>
-                  ))}
+                  {groups.map((g) => (<option key={g.id} value={g.id} disabled={g.availableSlots <= 0}>GH₵{g.contributionAmount} ({g.availableSlots} slots left){g.availableSlots <= 0 ? " — FULL" : ""}</option>))}
                 </select>
               )}
             </Field>
             <Field label="Preferred Payout Week (optional)"><input type="number" min="1" max="20" value={form.preferredPayoutWeek} onChange={(e) => update("preferredPayoutWeek", e.target.value)} placeholder="1–20" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
           </div>
-
           <Field label="Login Password * (for the member)"><input type="text" required minLength={6} value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="Min 6 characters" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
-
           {selectedGroup && (
             <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
               <div className="font-semibold mb-1" style={{ color: "#15803d" }}>Preview</div>
-              <div className="text-slate-700">
-                Weekly contribution: <strong>GH₵{selectedGroup.contributionAmount}</strong><br />
-                Expected payout: <strong>GH₵{(20 * Number(selectedGroup.contributionAmount) - 50).toLocaleString()}</strong>
-                <span className="text-xs text-slate-500"> (20 × GH₵{selectedGroup.contributionAmount} − GH₵50 fee)</span>
-              </div>
+              <div className="text-slate-700">Weekly contribution: <strong>GH₵{selectedGroup.contributionAmount}</strong><br />Expected payout: <strong>GH₵{(20 * Number(selectedGroup.contributionAmount) - 50).toLocaleString()}</strong><span className="text-xs text-slate-500"> (20 × GH₵{selectedGroup.contributionAmount} − GH₵50 fee)</span></div>
             </div>
           )}
-
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
-              {submitting ? "Creating…" : "Create Member"}
-            </button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Creating…" : "Create Member"}</button>
           </div>
         </form>
       </div>
@@ -419,12 +313,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-semibold text-slate-700 mb-1">{label}</label>
-      {children}
-    </div>
-  );
+  return (<div><label className="block text-sm font-semibold text-slate-700 mb-1">{label}</label>{children}</div>);
 }
 
 type MemberDetail = {
@@ -443,14 +332,38 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   const [m, setM] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showGroup, setShowGroup] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/admin/members/detail?id=${memberId}`)
       .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
       .then((d) => setM(d.member))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [memberId]);
+  }, [memberId, refreshKey]);
+
+  async function toggleActive() {
+    if (!m) return;
+    const newStatus = m.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const verb = newStatus === "ACTIVE" ? "activate" : "deactivate";
+    if (!confirm(`Are you sure you want to ${verb} ${m.fullName}?`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/members/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: m.id, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error || "Failed"); setBusy(false); return; }
+      setRefreshKey((k) => k + 1);
+    } catch { alert("Network error"); }
+    finally { setBusy(false); }
+  }
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading member…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
@@ -481,9 +394,11 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
           <div><div className="text-xs text-slate-400 uppercase font-semibold">Joined</div><div className="text-slate-800">{new Date(m.joinedAt).toLocaleDateString()}</div></div>
         </div>
         <div className="px-6 pb-6 flex flex-wrap gap-2">
-          <button className="text-sm font-semibold px-4 py-2 rounded-xl border-2" style={{ borderColor: "#16a34a", color: "#15803d" }}>✏️ Edit Member</button>
-          <button className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700">🔄 Change Group</button>
-          <button className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-red-200 text-red-600">⏸️ Deactivate</button>
+          <button onClick={() => setShowEdit(true)} disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 disabled:opacity-60" style={{ borderColor: "#16a34a", color: "#15803d" }}>✏️ Edit Member</button>
+          <button onClick={() => setShowGroup(true)} disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700 disabled:opacity-60">🔄 Change Group</button>
+          <button onClick={toggleActive} disabled={busy} className={`text-sm font-semibold px-4 py-2 rounded-xl border-2 disabled:opacity-60 ${m.status === "ACTIVE" ? "border-red-200 text-red-600" : "border-green-200 text-green-700"}`}>
+            {busy ? "…" : m.status === "ACTIVE" ? "⏸️ Deactivate" : "▶️ Activate"}
+          </button>
         </div>
       </div>
 
@@ -509,9 +424,7 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
                     <td className="py-2 font-mono text-xs">{p.reference}</td>
                     <td className="py-2 font-semibold">GH₵{p.amount}</td>
                     <td className="py-2 text-xs">{p.method.replace(/_/g, " ")}</td>
-                    <td className="py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
-                    </td>
+                    <td className="py-2"><span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span></td>
                     <td className="py-2 text-xs text-slate-500">{new Date(p.paymentDate).toLocaleDateString()}</td>
                   </tr>
                 ))}
@@ -521,25 +434,155 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h3 className="font-bold text-slate-800 mb-4">Payout History</h3>
-        <div className="text-center py-8 text-slate-400 text-sm">No payouts yet.</div>
-      </div>
+      <div className="bg-white rounded-2xl p-6 shadow-sm"><h3 className="font-bold text-slate-800 mb-4">Payout History</h3><div className="text-center py-8 text-slate-400 text-sm">No payouts yet.</div></div>
+      <div className="bg-white rounded-2xl p-6 shadow-sm"><h3 className="font-bold text-slate-800 mb-4">Admin Notes</h3><div className="text-center py-8 text-slate-400 text-sm">No notes yet. Notes feature coming soon.</div></div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h3 className="font-bold text-slate-800 mb-4">Admin Notes</h3>
-        <div className="text-center py-8 text-slate-400 text-sm">No notes yet. Notes feature coming soon.</div>
+      {showEdit && m && <EditMemberModal member={m} onClose={() => setShowEdit(false)} onSuccess={() => { setShowEdit(false); setRefreshKey((k) => k + 1); }} />}
+      {showGroup && m && <ChangeGroupModal member={m} onClose={() => setShowGroup(false)} onSuccess={() => { setShowGroup(false); setRefreshKey((k) => k + 1); }} />}
+    </div>
+  );
+}
+
+function EditMemberModal({ member, onClose, onSuccess }: { member: MemberDetail; onClose: () => void; onSuccess: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    fullName: member.fullName,
+    phone: member.phone,
+    whatsappNumber: member.whatsappNumber || "",
+    dateOfBirth: member.dateOfBirth.substring(0, 10),
+    address: member.address,
+    emergencyContact: member.emergencyContact,
+    preferredPayoutWeek: member.preferredPayoutWeek ? String(member.preferredPayoutWeek) : "",
+  });
+
+  function update(field: string, value: string) { setForm((f) => ({ ...f, [field]: value })); }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(""); setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/members/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed"); setSubmitting(false); return; }
+      onSuccess();
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-2xl my-8">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800">Edit Member</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Full Name *"><input type="text" required value={form.fullName} onChange={(e) => update("fullName", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="Phone Number *"><input type="text" required value={form.phone} onChange={(e) => update("phone", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="WhatsApp Number"><input type="text" value={form.whatsappNumber} onChange={(e) => update("whatsappNumber", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="Date of Birth *"><input type="date" required value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="Emergency Contact *"><input type="text" required value={form.emergencyContact} onChange={(e) => update("emergencyContact", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+            <Field label="Preferred Payout Week"><input type="number" min="1" max="20" value={form.preferredPayoutWeek} onChange={(e) => update("preferredPayoutWeek", e.target.value)} placeholder="1–20" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+          </div>
+          <Field label="Address *"><input type="text" required value={form.address} onChange={(e) => update("address", e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Changes"}</button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
-type PendingPayment = {
-  id: string; reference: string; amount: number; method: string;
-  submittedAt: string; paymentDate: string; transactionId: string | null;
-  memberId: string; memberName: string; memberPhone: string;
-  groupAmount: number; weekNumber: number;
-};
+function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail; onClose: () => void; onSuccess: () => void }) {
+  const [groups, setGroups] = useState<GroupOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [newGroupId, setNewGroupId] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/groups")
+      .then((r) => r.json())
+      .then((d) => setGroups(d.groups || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!newGroupId) { setError("Please select a new group."); return; }
+    if (newGroupId === member.group.id) { setError("This is already the member's current group."); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/members/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: member.id,
+          fullName: member.fullName,
+          phone: member.phone,
+          whatsappNumber: member.whatsappNumber,
+          dateOfBirth: member.dateOfBirth,
+          address: member.address,
+          emergencyContact: member.emergencyContact,
+          preferredPayoutWeek: member.preferredPayoutWeek,
+          groupId: newGroupId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed"); setSubmitting(false); return; }
+      onSuccess();
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">Change Group</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="bg-slate-50 rounded-xl p-3 text-sm">
+            <div className="text-slate-500 text-xs">Current group</div>
+            <div className="font-bold text-slate-800">GH₵{member.group.contributionAmount}</div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Move to group *</label>
+            {loading ? (
+              <div className="text-slate-400 text-sm py-2">Loading groups…</div>
+            ) : (
+              <select required value={newGroupId} onChange={(e) => setNewGroupId(e.target.value)} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                <option value="">— Select new group —</option>
+                {groups.filter((g) => g.id !== member.group.id).map((g) => (
+                  <option key={g.id} value={g.id} disabled={g.availableSlots <= 0}>
+                    GH₵{g.contributionAmount} ({g.availableSlots} slots left){g.availableSlots <= 0 ? " — FULL" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Moving…" : "Change Group"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type PendingPayment = { id: string; reference: string; amount: number; method: string; submittedAt: string; paymentDate: string; transactionId: string | null; memberId: string; memberName: string; memberPhone: string; groupAmount: number; weekNumber: number; };
 
 function ApprovalsView({ onChanged }: { onChanged: () => void }) {
   const [payments, setPayments] = useState<PendingPayment[]>([]);
@@ -563,11 +606,7 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
   async function handleVerify(payment: PendingPayment) {
     setBusyId(payment.id);
     try {
-      const res = await fetch("/api/admin/payments/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId: payment.id }),
-      });
+      const res = await fetch("/api/admin/payments/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: payment.id }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error || "Failed to verify"); setBusyId(null); return; }
       reload();
@@ -581,13 +620,9 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Pending Verification</h2>
-          <p className="text-sm text-slate-500">{payments.length} payment{payments.length === 1 ? "" : "s"} awaiting your review</p>
-        </div>
+        <div><h2 className="text-2xl font-bold text-slate-800">Pending Verification</h2><p className="text-sm text-slate-500">{payments.length} payment{payments.length === 1 ? "" : "s"} awaiting your review</p></div>
         <button onClick={reload} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700">↻ Refresh</button>
       </div>
-
       {payments.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
           <div className="text-5xl mb-3">✅</div>
@@ -601,13 +636,8 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>
-                      {p.memberName.charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <div className="font-bold text-slate-800">{p.memberName}</div>
-                      <div className="text-xs text-slate-500">{p.memberPhone} • Week {p.weekNumber} • GH₵{p.groupAmount} group</div>
-                    </div>
+                    <span className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>{p.memberName.charAt(0).toUpperCase()}</span>
+                    <div><div className="font-bold text-slate-800">{p.memberName}</div><div className="text-xs text-slate-500">{p.memberPhone} • Week {p.weekNumber} • GH₵{p.groupAmount} group</div></div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                     <div><div className="text-xs text-slate-400 uppercase font-semibold">Amount</div><div className="font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</div></div>
@@ -615,14 +645,10 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
                     <div><div className="text-xs text-slate-400 uppercase font-semibold">Reference</div><div className="font-mono text-xs text-slate-700">{p.reference}</div></div>
                     <div><div className="text-xs text-slate-400 uppercase font-semibold">Submitted</div><div className="text-slate-700 text-xs">{new Date(p.submittedAt).toLocaleString()}</div></div>
                   </div>
-                  {p.transactionId && (
-                    <div className="mt-3 text-xs text-slate-500"><span className="uppercase font-semibold text-slate-400">Member-supplied ref:</span> {p.transactionId}</div>
-                  )}
+                  {p.transactionId && <div className="mt-3 text-xs text-slate-500"><span className="uppercase font-semibold text-slate-400">Member-supplied ref:</span> {p.transactionId}</div>}
                 </div>
                 <div className="flex sm:flex-col gap-2 sm:w-32">
-                  <button onClick={() => handleVerify(p)} disabled={busyId === p.id} className="flex-1 text-white font-semibold py-2.5 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
-                    {busyId === p.id ? "…" : "✓ Verify"}
-                  </button>
+                  <button onClick={() => handleVerify(p)} disabled={busyId === p.id} className="flex-1 text-white font-semibold py-2.5 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{busyId === p.id ? "…" : "✓ Verify"}</button>
                   <button onClick={() => setRejectPayment(p)} disabled={busyId === p.id} className="flex-1 font-semibold py-2.5 rounded-xl border-2 border-red-200 text-red-600 disabled:opacity-60">✕ Reject</button>
                 </div>
               </div>
@@ -630,10 +656,7 @@ function ApprovalsView({ onChanged }: { onChanged: () => void }) {
           ))}
         </div>
       )}
-
-      {rejectPayment && (
-        <RejectModal payment={rejectPayment} onClose={() => setRejectPayment(null)} onSuccess={() => { setRejectPayment(null); reload(); }} />
-      )}
+      {rejectPayment && <RejectModal payment={rejectPayment} onClose={() => setRejectPayment(null)} onSuccess={() => { setRejectPayment(null); reload(); }} />}
     </div>
   );
 }
@@ -644,23 +667,15 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
+    e.preventDefault(); setError("");
     if (!reason.trim()) { setError("A rejection reason is required."); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/payments/reject", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId: payment.id, reason }),
-      });
+      const res = await fetch("/api/admin/payments/reject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: payment.id, reason }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to reject"); setSubmitting(false); return; }
       onSuccess();
-    } catch {
-      setError("Network error. Please try again.");
-      setSubmitting(false);
-    }
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
   }
 
   return (
@@ -683,9 +698,7 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#dc2626" }}>
-              {submitting ? "Rejecting…" : "Reject Payment"}
-            </button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#dc2626" }}>{submitting ? "Rejecting…" : "Reject Payment"}</button>
           </div>
         </form>
       </div>
@@ -694,11 +707,5 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
 }
 
 function ComingSoon({ view }: { view: string }) {
-  return (
-    <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-      <div className="text-5xl mb-3">🚧</div>
-      <h3 className="font-bold text-slate-800 mb-1 capitalize">{view}</h3>
-      <p className="text-sm text-slate-500">This section is coming in the next stage.</p>
-    </div>
-  );
+  return (<div className="bg-white rounded-2xl p-12 text-center shadow-sm"><div className="text-5xl mb-3">🚧</div><h3 className="font-bold text-slate-800 mb-1 capitalize">{view}</h3><p className="text-sm text-slate-500">This section is coming in the next stage.</p></div>);
 }
