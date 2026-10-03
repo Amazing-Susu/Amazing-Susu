@@ -37,7 +37,6 @@ export async function GET(request: NextRequest) {
         fullName: member.fullName,
         phone: member.phone,
         whatsappNumber: member.whatsappNumber,
-        ghanaCardNumber: member.ghanaCardNumber,
         dateOfBirth: member.dateOfBirth.toISOString(),
         address: member.address,
         emergencyContact: member.emergencyContact,
