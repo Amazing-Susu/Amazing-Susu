@@ -15,7 +15,6 @@ export async function POST(request: NextRequest) {
       fullName,
       phone,
       whatsappNumber,
-      ghanaCardNumber,
       dateOfBirth,
       address,
       emergencyContact,
@@ -25,7 +24,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (
-      !fullName || !phone || !ghanaCardNumber || !dateOfBirth ||
+      !fullName || !phone || !dateOfBirth ||
       !address || !emergencyContact || !password || !groupId
     ) {
       return NextResponse.json(
@@ -41,12 +40,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.member.findFirst({
-      where: { OR: [{ phone }, { ghanaCardNumber }] },
-    });
+    const existing = await prisma.member.findUnique({ where: { phone } });
     if (existing) {
       return NextResponse.json(
-        { error: "A member with that phone number or Ghana Card already exists." },
+        { error: "A member with that phone number already exists." },
         { status: 409 }
       );
     }
@@ -76,7 +73,6 @@ export async function POST(request: NextRequest) {
         fullName,
         phone,
         whatsappNumber: whatsappNumber || null,
-        ghanaCardNumber,
         dateOfBirth: new Date(dateOfBirth),
         address,
         emergencyContact,
