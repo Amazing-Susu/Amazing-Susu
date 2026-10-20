@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/me")
@@ -28,6 +29,7 @@ export default function AdminPage() {
   function handleNavigate(view: string) {
     if (view !== "members") setSelectedMemberId(null);
     setCurrentView(view);
+    setMobileMenuOpen(false);
   }
 
   if (checking) return <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f0fdf4, #d1fae5)" }}><div className="text-slate-500">Loading…</div></div>;
@@ -39,6 +41,8 @@ export default function AdminPage() {
       adminName={adminName}
       currentView={currentView}
       pendingCount={pendingCount}
+      mobileMenuOpen={mobileMenuOpen}
+      setMobileMenuOpen={setMobileMenuOpen}
       onNavigate={handleNavigate}
       onLogout={async () => {
         await fetch("/api/admin/logout", { method: "POST" });
@@ -47,14 +51,15 @@ export default function AdminPage() {
         setSelectedMemberId(null);
       }}
     >
-      {currentView === "dashboard" && <DashboardView adminName={adminName} />}
+      {currentView === "dashboard" && <DashboardView adminName={adminName} refreshKey={refreshKey} />}
       {currentView === "members" && !selectedMemberId && <MembersView onViewMember={setSelectedMemberId} />}
       {currentView === "members" && selectedMemberId && (
         <MemberDetailView memberId={selectedMemberId} onBack={() => { setSelectedMemberId(null); setRefreshKey((k) => k + 1); }} />
       )}
+      {currentView === "groups" && <GroupsView />}
       {currentView === "approvals" && <ApprovalsView onChanged={() => setRefreshKey((k) => k + 1)} />}
       {currentView === "payouts" && <PayoutsView />}
-      {currentView !== "dashboard" && currentView !== "members" && currentView !== "approvals" && currentView !== "payouts" && <ComingSoon view={currentView} />}
+      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "approvals" && currentView !== "payouts" && <ComingSoon view={currentView} />}
     </AdminShell>
   );
 }
@@ -94,7 +99,7 @@ function AdminLogin({ onSuccess }: { onSuccess: (name: string) => void }) {
   );
 }
 
-function AdminShell({ adminName, currentView, pendingCount, onNavigate, onLogout, children }: { adminName: string; currentView: string; pendingCount: number; onNavigate: (v: string) => void; onLogout: () => void; children: React.ReactNode; }) {
+function AdminShell({ adminName, currentView, pendingCount, mobileMenuOpen, setMobileMenuOpen, onNavigate, onLogout, children }: { adminName: string; currentView: string; pendingCount: number; mobileMenuOpen: boolean; setMobileMenuOpen: (v: boolean) => void; onNavigate: (v: string) => void; onLogout: () => void; children: React.ReactNode; }) {
   const navItems = [
     { id: "dashboard", icon: "🏠", label: "Dashboard" },
     { id: "members", icon: "👥", label: "Members" },
@@ -105,10 +110,16 @@ function AdminShell({ adminName, currentView, pendingCount, onNavigate, onLogout
     { id: "reports", icon: "📊", label: "Reports" },
     { id: "settings", icon: "⚙️", label: "Settings" },
   ];
+
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <aside className="hidden md:flex flex-col w-60 text-white" style={{ backgroundColor: "#0a3d2a" }}>
-        <div className="p-5 border-b border-white/10">
+    <div className="flex min-h-screen bg-slate-50 relative">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)} />
+      )}
+
+      <aside className={`fixed md:static inset-y-0 left-0 z-30 w-64 text-white transform transition-transform duration-200 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} flex flex-col`} style={{ backgroundColor: "#0a3d2a" }}>
+        <div className="p-5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xl" style={{ backgroundColor: "#16a34a" }}>🌱</div>
             <div>
@@ -116,8 +127,9 @@ function AdminShell({ adminName, currentView, pendingCount, onNavigate, onLogout
               <div className="text-[10px] opacity-70">Save Together • Grow Together</div>
             </div>
           </div>
+          <button className="md:hidden text-white/70 text-xl" onClick={() => setMobileMenuOpen(false)}>×</button>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const active = item.id === currentView;
             return (
@@ -130,48 +142,140 @@ function AdminShell({ adminName, currentView, pendingCount, onNavigate, onLogout
         </nav>
         <div className="p-4 border-t border-white/10"><button onClick={onLogout} className="w-full text-xs opacity-70 hover:opacity-100 text-left">Sign Out →</button></div>
       </aside>
-      <main className="flex-1 overflow-auto">
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-          <span className="font-bold text-lg text-slate-800">{navItems.find((n) => n.id === currentView)?.label || "Dashboard"}</span>
+
+      <main className="flex-1 overflow-auto w-full">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <button className="md:hidden text-2xl text-slate-600" onClick={() => setMobileMenuOpen(true)}>☰</button>
+            <span className="font-bold text-lg text-slate-800">{navItems.find((n) => n.id === currentView)?.label || "Dashboard"}</span>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-2xl">🔔</span>
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>{adminName.charAt(0).toUpperCase()}</div>
             <span className="hidden sm:block text-sm font-semibold text-slate-700">{adminName}</span>
           </div>
         </header>
-        <div className="p-6">{children}</div>
+        <div className="p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );
 }
 
-function DashboardView({ adminName }: { adminName: string }) {
+// ==================== DASHBOARD ====================
+
+function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKey: number }) {
+  const [stats, setStats] = useState({ totalMembers: 0, totalContributions: 0, totalWeeksPaid: 0, activeGroups: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/admin/dashboard")
+      .then(r => r.json())
+      .then(d => { if (d.totalMembers !== undefined) setStats(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [refreshKey]);
+
   const kpis = [
-    { label: "Total Members", value: "0", sub: "Start adding members", icon: "👥", color: "linear-gradient(135deg, #16a34a, #15803d)" },
-    { label: "Total Contributions (GH₵)", value: "0.00", sub: "No payments yet", icon: "💵", color: "linear-gradient(135deg, #2563eb, #1d4ed8)" },
-    { label: "Total Weeks Paid", value: "0", sub: "Awaiting first payment", icon: "📅", color: "linear-gradient(135deg, #7c3aed, #6d28d9)" },
-    { label: "Active Groups", value: "9", sub: "All tiers ready", icon: "📊", color: "linear-gradient(135deg, #ea580c, #c2410c)" },
+    { label: "Total Members", value: stats.totalMembers.toString(), sub: "Active members", icon: "👥", color: "linear-gradient(135deg, #16a34a, #15803d)" },
+    { label: "Total Contributions (GH₵)", value: stats.totalContributions.toLocaleString(), sub: "Verified payments", icon: "💵", color: "linear-gradient(135deg, #2563eb, #1d4ed8)" },
+    { label: "Total Weeks Paid", value: stats.totalWeeksPaid.toString(), sub: "Fully paid weeks", icon: "📅", color: "linear-gradient(135deg, #7c3aed, #6d28d9)" },
+    { label: "Active Groups", value: stats.activeGroups.toString(), sub: "Groups with members", icon: "📊", color: "linear-gradient(135deg, #ea580c, #c2410c)" },
   ];
+
   return (
     <div className="space-y-6">
-      <div><h2 className="text-2xl font-bold text-slate-800">👋 Welcome, {adminName}</h2><p className="text-sm text-slate-500">Numbers below will fill in as you add members and receive payments.</p></div>
+      <div><h2 className="text-2xl font-bold text-slate-800">👋 Welcome, {adminName}</h2><p className="text-sm text-slate-500">Here's what's happening with your Susu today.</p></div>
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <div key={kpi.label} className="rounded-2xl p-5 text-white relative overflow-hidden shadow" style={{ background: kpi.color }}>
             <div className="absolute right-3 top-3 text-6xl opacity-20">{kpi.icon}</div>
             <div className="text-sm opacity-90 mb-1">{kpi.label}</div>
-            <div className="text-3xl font-bold">{kpi.value}</div>
+            <div className="text-3xl font-bold">
+              {loading ? <span className="opacity-50 text-xl">…</span> : kpi.value}
+            </div>
             <div className="text-xs mt-2 opacity-90">{kpi.sub}</div>
           </div>
         ))}
       </div>
+
       <div className="bg-white rounded-2xl p-6 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Recent Payments</h3>
-        <div className="text-center py-12 text-slate-400 text-sm">No payments yet.<br />Once members start submitting, they'll appear here.</div>
+        <div className="text-center py-12 text-slate-400 text-sm">
+          Go to the Approvals tab to manage pending payments.
+        </div>
       </div>
     </div>
   );
 }
+
+// ==================== GROUPS VIEW ====================
+
+type GroupData = { id: string; contributionAmount: string; maxMembers: number; currentMembers: number; availableSlots: number };
+
+function GroupsView() {
+  const [groups, setGroups] = useState<GroupData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/groups")
+      .then(r => r.json())
+      .then(d => setGroups(d.groups || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading groups…</div>;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">Groups Overview</h2>
+        <p className="text-sm text-slate-500">Manage your 9 contribution tiers and their capacity.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {groups.map(g => {
+          const isFull = g.availableSlots <= 0;
+          const percentage = (g.currentMembers / g.maxMembers) * 100;
+          const payout = (20 * Number(g.contributionAmount)) - 50;
+
+          return (
+            <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contribution</div>
+                  <div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div>
+                </div>
+                <div className={`text-xs px-2 py-1 rounded-full font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                  {isFull ? 'FULL' : `${g.availableSlots} slots left`}
+                </div>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Members</span>
+                  <span className="font-semibold text-slate-800">{g.currentMembers} / {g.maxMembers}</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2">
+                  <div className={`h-2 rounded-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }}></div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-3 flex justify-between items-center">
+                <div className="text-xs text-slate-500">Expected Payout</div>
+                <div className="font-bold text-green-700">GH₵{payout.toLocaleString()}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==================== MEMBERS VIEW ====================
 
 type MemberRow = { id: string; fullName: string; phone: string; groupAmount: string; status: string; joinedAt: string };
 
@@ -567,6 +671,8 @@ function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail
   );
 }
 
+// ==================== APPROVALS ====================
+
 type PendingPayment = { id: string; reference: string; amount: number; method: string; submittedAt: string; paymentDate: string; transactionId: string | null; memberId: string; memberName: string; memberPhone: string; groupAmount: number; weekNumber: number; };
 
 function ApprovalsView({ onChanged }: { onChanged: () => void }) {
@@ -691,7 +797,7 @@ function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment;
   );
 }
 
-// ==================== PAYOUTS VIEW ====================
+// ==================== PAYOUTS ====================
 
 type PayoutWeek = {
   weekNumber: number;
