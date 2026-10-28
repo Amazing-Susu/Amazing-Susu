@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 
 type MemberInfo = {
-  id: string; fullName: string; phone: string;
+  id: string; fullName: string; phone: string; joinedAt: string;
   groupAmount: number; expectedPayout: number;
   currentWeekNumber: number; cycleId: string | null;
 };
@@ -32,7 +32,7 @@ export default function MemberPage() {
       .finally(() => setChecking(false));
   }, [refreshKey]);
 
-  if (checking) return <div className="min-h-screen flex items-center justify-center" style={{ background: "linear-gradient(135deg, #f0fdf4, #d1fae5)" }}><div className="text-slate-500">Loading…</div></div>;
+  if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading your dashboard…</div></div>;
   if (!member) return <MemberLogin onSuccess={() => setRefreshKey((k) => k + 1)} />;
 
   return (
@@ -46,6 +46,8 @@ export default function MemberPage() {
     />
   );
 }
+
+// ==================== LOGIN ====================
 
 function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
   const [phone, setPhone] = useState("");
@@ -72,8 +74,8 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
           <p className="text-sm text-slate-500 mt-1">Member Login</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
-          <div><label className="text-sm font-semibold text-slate-700">Phone Number</label><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
-          <div><label className="text-sm font-semibold text-slate-700">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
+          <div><label className="text-sm font-semibold text-slate-700">Phone Number</label><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder="0551234567" className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
+          <div><label className="text-sm font-semibold text-slate-700">Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <button type="submit" disabled={loading} className="w-full text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{loading ? "Signing in…" : "Sign In"}</button>
         </form>
@@ -81,6 +83,8 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
     </div>
   );
 }
+
+// ==================== DASHBOARD ====================
 
 function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, onLogout }: {
   member: MemberInfo; weekly: WeeklyRow[]; payments: PaymentRow[]; payoutStatus: PayoutStatus | null;
@@ -92,122 +96,166 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, on
   const weeksPaidCount = weekly.filter((w) => w.status === "FULL").length;
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="text-white px-5 pt-5 pb-20 rounded-b-3xl" style={{ backgroundColor: "#16a34a" }}>
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 pb-24">
+      {/* HEADER */}
+      <header className="text-white px-5 pt-8 pb-24 rounded-b-[2.5rem]" style={{ backgroundColor: "#16a34a" }}>
+        <div className="max-w-md mx-auto flex items-center justify-between">
           <div>
-            <div className="text-xs opacity-90">Welcome back</div>
-            <div className="text-xl font-bold">{member.fullName}</div>
+            <div className="text-xs opacity-90 mb-1">Welcome back 👋</div>
+            <div className="text-2xl font-bold">{member.fullName}</div>
           </div>
-          <button onClick={onLogout} className="text-xs opacity-90 hover:opacity-100">Sign Out</button>
+          <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-1.5 rounded-lg text-xs font-semibold">Sign Out</button>
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 -mt-16 space-y-4 pb-10">
-        {currentWeek && (
-          <div className="bg-white rounded-2xl p-5 shadow-lg border border-slate-100">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="text-xs text-slate-500 uppercase font-semibold">This Week (Week {currentWeek.weekNumber})</div>
-                <div className="text-xs text-slate-400 mt-0.5">Due {new Date(currentWeek.dueDate).toLocaleDateString()}</div>
-              </div>
-              <StatusBadge status={currentWeek.status} />
-            </div>
-            <div className="grid grid-cols-3 gap-3 mt-4">
-              <div className="text-center"><div className="text-xs text-slate-500">Expected</div><div className="text-lg font-bold text-slate-800">GH₵{currentWeek.expected}</div></div>
-              <div className="text-center"><div className="text-xs text-slate-500">Verified</div><div className="text-lg font-bold" style={{ color: "#16a34a" }}>GH₵{currentWeek.verified}</div></div>
-              <div className="text-center"><div className="text-xs text-slate-500">Pending</div><div className="text-lg font-bold text-yellow-600">GH₵{currentWeek.pending}</div></div>
-            </div>
-            {currentWeek.status !== "FULL" && (
-              <button onClick={() => setShowPay(true)} className="w-full mt-4 text-white font-semibold py-3 rounded-xl" style={{ backgroundColor: "#16a34a" }}>
-                {currentWeek.verified > 0 || currentWeek.pending > 0 ? "Add Another Payment" : "Pay This Week"}
-              </button>
-            )}
+      {/* PROFILE CARD */}
+      <div className="max-w-md mx-auto px-4 -mt-16 space-y-4">
+        <div className="bg-white rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner" style={{ background: "linear-gradient(135deg, #16a34a, #15803d)" }}>
+            {member.fullName.charAt(0).toUpperCase()}
           </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"><div className="text-xs text-slate-500">Weeks Paid</div><div className="text-2xl font-bold text-slate-800">{weeksPaidCount}<span className="text-sm text-slate-400"> / 20</span></div></div>
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100"><div className="text-xs text-slate-500">Total Contributed</div><div className="text-2xl font-bold text-slate-800">GH₵{totalPaid.toLocaleString()}</div></div>
+          <div>
+            <div className="font-bold text-slate-800 text-lg leading-tight">{member.fullName}</div>
+            <div className="text-xs text-slate-500 mt-0.5">{member.phone}</div>
+            <div className="text-xs text-slate-400 mt-1">Joined: {new Date(member.joinedAt).toLocaleDateString()}</div>
+          </div>
         </div>
 
-        {/* Payout card with real status */}
+        {/* 3 STAT TILES */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <div className="text-xl mb-1">📅</div>
+            <div className="text-lg font-bold text-slate-800">{weeksPaidCount}<span className="text-xs text-slate-400"> / 20</span></div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wide">Weeks Paid</div>
+          </div>
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <div className="text-xl mb-1">💵</div>
+            <div className="text-lg font-bold text-slate-800">GH₵{totalPaid.toLocaleString()}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wide">Contributed</div>
+          </div>
+          <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
+            <div className="text-xl mb-1">👥</div>
+            <div className="text-lg font-bold text-slate-800">GH₵{member.groupAmount}</div>
+            <div className="text-[10px] text-slate-500 uppercase font-semibold tracking-wide">Group Tier</div>
+          </div>
+        </div>
+
+        {/* PAYOUT CARD */}
         {payoutStatus && (
           <div
-            className="rounded-2xl p-5 border"
+            className="rounded-2xl p-5 border shadow-sm"
             style={
               payoutStatus.state === "RECEIVED"
                 ? { backgroundColor: "#dcfce7", borderColor: "#86efac" }
                 : { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }
             }
           >
-            <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#15803d" }}>
-              {payoutStatus.state === "RECEIVED" ? "✓ Payout Received" : "Your Expected Payout"}
-            </div>
-            <div className="text-3xl font-bold mt-1" style={{ color: "#052e16" }}>
-              GH₵{payoutStatus.amount.toLocaleString()}
-            </div>
-            <div className="text-xs mt-2" style={{ color: "#15803d" }}>
-              {payoutStatus.state === "RECEIVED" && payoutStatus.paidAt
-                ? `Received on ${new Date(payoutStatus.paidAt).toLocaleDateString()}`
-                : payoutStatus.state === "SCHEDULED"
-                ? "Scheduled — waiting for admin to complete"
-                : "Pending"}
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-wide" style={{ color: "#15803d" }}>
+                  {payoutStatus.state === "RECEIVED" ? "✓ Payout Received" : "Your Expected Payout"}
+                </div>
+                <div className="text-3xl font-bold mt-1" style={{ color: "#052e16" }}>
+                  GH₵{payoutStatus.amount.toLocaleString()}
+                </div>
+                <div className="text-xs mt-2 font-medium" style={{ color: "#15803d" }}>
+                  {payoutStatus.state === "RECEIVED" && payoutStatus.paidAt
+                    ? `Received on ${new Date(payoutStatus.paidAt).toLocaleDateString()}`
+                    : payoutStatus.state === "SCHEDULED"
+                    ? "Scheduled — awaiting admin to complete"
+                    : "Pending — complete your weekly contributions"}
+                </div>
+              </div>
+              <div className="text-3xl">
+                {payoutStatus.state === "RECEIVED" ? "🎉" : "⏳"}
+              </div>
             </div>
           </div>
         )}
 
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <h3 className="font-bold text-slate-800 mb-3">Weekly Progress</h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
+        {/* CURRENT WEEK ACTION */}
+        {currentWeek && currentWeek.status !== "FULL" && (
+          <div className="bg-white rounded-2xl p-5 shadow-md border border-slate-100 flex items-center justify-between">
+            <div>
+              <div className="text-xs text-slate-500 font-semibold uppercase">Week {currentWeek.weekNumber} Action</div>
+              <div className="text-sm font-bold text-slate-800 mt-1">GH₵{currentWeek.verified} / GH₵{currentWeek.expected}</div>
+              {currentWeek.pending > 0 && <div className="text-xs text-yellow-600 mt-1 font-medium">GH₵{currentWeek.pending} awaiting verification</div>}
+            </div>
+            <button onClick={() => setShowPay(true)} className="text-white font-bold px-5 py-2.5 rounded-xl shadow-lg hover:scale-105 transition-transform" style={{ backgroundColor: "#16a34a" }}>
+              Pay Now
+            </button>
+          </div>
+        )}
+
+        {/* PAYMENT HISTORY */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mt-4">
+          <h3 className="font-bold text-slate-800 mb-4">Payment History</h3>
+          {payments.length === 0 ? (
+            <div className="text-center py-6 text-slate-400 text-sm">No payments yet. Submit your first payment above.</div>
+          ) : (
+            <div className="space-y-3">
+              {payments.slice(0, 5).map((p) => (
+                <div key={p.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-lg">🧾</div>
+                    <div>
+                      <div className="text-sm font-bold text-slate-800">GH₵{p.amount}</div>
+                      <div className="text-xs text-slate-500">{new Date(p.paymentDate).toLocaleDateString()} • {p.reference}</div>
+                      {p.rejectionReason && <div className="text-xs text-red-600 mt-1">Reason: {p.rejectionReason}</div>}
+                    </div>
+                  </div>
+                  <PaymentStatusBadge status={p.status} />
+                </div>
+              ))}
+              {payments.length > 5 && (
+                <div className="text-center pt-2">
+                  <span className="text-xs text-green-700 font-semibold cursor-pointer">View all payments →</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* WEEKLY PROGRESS (20 WEEKS) */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 mt-4">
+          <h3 className="font-bold text-slate-800 mb-4">20-Week Progress</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
             {weekly.map((w) => (
-              <div key={w.weekNumber} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                <div><div className="text-sm font-semibold text-slate-800">Week {w.weekNumber}</div><div className="text-xs text-slate-500">GH₵{w.verified} / GH₵{w.expected}</div></div>
+              <div key={w.weekNumber} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                <div>
+                  <div className="text-sm font-semibold text-slate-800">Week {w.weekNumber}</div>
+                  <div className="text-xs text-slate-500">GH₵{w.verified} / GH₵{w.expected}</div>
+                </div>
                 <StatusBadge status={w.status} small />
               </div>
             ))}
           </div>
         </div>
-
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <h3 className="font-bold text-slate-800 mb-3">Recent Payments</h3>
-          {payments.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm">No payments yet. Submit your first payment above.</div>
-          ) : (
-            <div className="space-y-2">
-              {payments.slice(0, 15).map((p) => (
-                <div key={p.id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                  <div>
-                    <div className="text-sm font-semibold text-slate-800">GH₵{p.amount}</div>
-                    <div className="text-xs text-slate-500 font-mono">{p.reference}</div>
-                    <div className="text-xs text-slate-400">{new Date(p.paymentDate).toLocaleDateString()}</div>
-                    {p.rejectionReason && <div className="text-xs text-red-600 mt-1">Reason: {p.rejectionReason}</div>}
-                  </div>
-                  <PaymentStatusBadge status={p.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
-      {showPay && currentWeek && <PaymentModal expected={currentWeek.expected} onClose={() => setShowPay(false)} onSuccess={() => { setShowPay(false); onRefresh(); }} />}
+      {showPay && currentWeek && (
+        <PaymentModal expected={currentWeek.expected} onClose={() => setShowPay(false)} onSuccess={() => { setShowPay(false); onRefresh(); }} />
+      )}
     </div>
   );
 }
 
+// ==================== BADGES ====================
+
 function StatusBadge({ status, small }: { status: "NOT_PAID" | "PARTIAL" | "FULL"; small?: boolean }) {
-  const base = small ? "text-xs px-2 py-0.5" : "text-xs px-3 py-1";
-  if (status === "FULL") return <span className={`${base} rounded-full font-semibold bg-green-100 text-green-700`}>✓ Fully Paid</span>;
-  if (status === "PARTIAL") return <span className={`${base} rounded-full font-semibold bg-yellow-100 text-yellow-700`}>⏳ Partial</span>;
-  return <span className={`${base} rounded-full font-semibold bg-slate-200 text-slate-600`}>Not Paid</span>;
+  const base = small ? "text-[10px] px-2 py-0.5" : "text-xs px-3 py-1";
+  if (status === "FULL") return <span className={`${base} rounded-full font-bold bg-green-100 text-green-700`}>✓ Paid</span>;
+  if (status === "PARTIAL") return <span className={`${base} rounded-full font-bold bg-yellow-100 text-yellow-700`}>⏳ Partial</span>;
+  return <span className={`${base} rounded-full font-bold bg-slate-100 text-slate-500`}>Unpaid</span>;
 }
 
 function PaymentStatusBadge({ status }: { status: string }) {
-  if (status === "VERIFIED") return <span className="text-xs px-2 py-1 rounded-full font-semibold bg-green-100 text-green-700">Verified</span>;
-  if (status === "REJECTED") return <span className="text-xs px-2 py-1 rounded-full font-semibold bg-red-100 text-red-700">Rejected</span>;
-  return <span className="text-xs px-2 py-1 rounded-full font-semibold bg-yellow-100 text-yellow-700">Pending</span>;
+  if (status === "VERIFIED") return <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-100 text-green-700">Verified</span>;
+  if (status === "REJECTED") return <span className="text-xs px-2 py-1 rounded-full font-bold bg-red-100 text-red-700">Rejected</span>;
+  return <span className="text-xs px-2 py-1 rounded-full font-bold bg-yellow-100 text-yellow-700">Pending</span>;
 }
+
+// ==================== PAYMENT MODAL ====================
 
 const PAYMENT_METHODS = [
   { value: "MTN_MOMO", label: "MTN Mobile Money" },
@@ -245,16 +293,16 @@ function PaymentModal({ expected, onClose, onSuccess }: { expected: number; onCl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800">Submit Payment</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleFirstSubmit} className="p-5 space-y-4">
           <div>
             <label className="text-sm font-semibold text-slate-700">Amount (GH₵)</label>
-            <input type="number" step="0.01" min="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Expected: ${expected}`} className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" />
+            <input type="number" step="0.01" min="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Expected: ${expected}`} className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 text-lg font-bold" />
             <div className="text-xs text-slate-500 mt-1">Your group expects GH₵{expected} per week.</div>
           </div>
           <div>
@@ -268,22 +316,22 @@ function PaymentModal({ expected, onClose, onSuccess }: { expected: number; onCl
             <input type="text" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="e.g. Momo transaction ID" className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" />
           </div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Submitting…" : "Submit Payment"}</button>
+          <div className="pt-2">
+            <button type="submit" disabled={submitting} className="w-full text-white font-bold py-3.5 rounded-xl shadow-lg disabled:opacity-60 text-lg" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Submitting…" : "Submit Payment"}</button>
+            <button type="button" onClick={onClose} className="w-full mt-2 text-slate-500 font-semibold py-2 rounded-xl">Cancel</button>
           </div>
         </form>
       </div>
 
       {warning && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-6 text-center">
-            <div className="text-4xl mb-3">⚠️</div>
-            <h3 className="font-bold text-slate-800 mb-2">Amount Below Expected</h3>
-            <p className="text-sm text-slate-600 mb-5">Your group contribution is <strong>GH₵{expected}</strong>.<br />You entered <strong>GH₵{amount}</strong>.<br /><br />Are you sure you want to submit this payment?</p>
-            <div className="flex gap-3">
-              <button onClick={() => setWarning(false)} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-              <button onClick={submit} className="flex-1 text-white font-semibold py-3 rounded-xl" style={{ backgroundColor: "#16a34a" }}>Submit Anyway</button>
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">⚠️</div>
+            <h3 className="font-bold text-slate-800 text-xl mb-2">Amount Below Expected</h3>
+            <p className="text-sm text-slate-600 mb-6 leading-relaxed">Your group contribution is <strong>GH₵{expected}</strong>.<br />You entered <strong>GH₵{amount}</strong>.<br /><br />Are you sure you want to submit this payment?</p>
+            <div className="space-y-2">
+              <button onClick={submit} className="w-full text-white font-bold py-3 rounded-xl" style={{ backgroundColor: "#16a34a" }}>Yes, Submit Anyway</button>
+              <button onClick={() => setWarning(false)} className="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl">Go Back</button>
             </div>
           </div>
         </div>
