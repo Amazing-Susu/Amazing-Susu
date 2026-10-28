@@ -1142,4 +1142,4 @@ function MarkPaidModal({ week, onClose, onSuccess }: { week: PayoutWeek; onClose
 
 function ComingSoon({ view }: { view: string }) {
   return (<div className="bg-white rounded-2xl p-12 text-center shadow-sm"><div className="text-5xl mb-3">🚧</div><h3 className="font-bold text-slate-800 mb-1 capitalize">{view}</h3><p className="text-sm text-slate-500">This section is coming in the next stage.</p></div>);
-
+}
