@@ -9,12 +9,14 @@ type MemberInfo = {
 type WeeklyRow = { weekNumber: number; weekId: string; dueDate: string; expected: number; verified: number; pending: number; status: "NOT_PAID" | "PARTIAL" | "FULL"; };
 type PaymentRow = { id: string; reference: string; amount: number; method: string; status: string; paymentDate: string; rejectionReason: string | null; };
 type PayoutStatus = { state: "PENDING" | "SCHEDULED" | "RECEIVED"; amount: number; paidAt?: string | null; };
+type NotificationRow = { id: string; title: string; message: string; readAt: string | null; createdAt: string; };
 
 export default function MemberPage() {
   const [member, setMember] = useState<MemberInfo | null>(null);
   const [weekly, setWeekly] = useState<WeeklyRow[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [payoutStatus, setPayoutStatus] = useState<PayoutStatus | null>(null);
+  const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -30,6 +32,11 @@ export default function MemberPage() {
         }
       })
       .finally(() => setChecking(false));
+
+    fetch("/api/member/notifications")
+      .then((r) => (r.ok ? r.json() : { notifications: [] }))
+      .then((d) => setNotifications(d.notifications || []))
+      .catch(() => {});
   }, [refreshKey]);
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading your dashboard…</div></div>;
@@ -41,6 +48,7 @@ export default function MemberPage() {
       weekly={weekly}
       payments={payments}
       payoutStatus={payoutStatus}
+      notifications={notifications}
       onRefresh={() => setRefreshKey((k) => k + 1)}
       onLogout={async () => { await fetch("/api/member/logout", { method: "POST" }); setMember(null); }}
     />
@@ -86,14 +94,24 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
 
 // ==================== DASHBOARD ====================
 
-function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, onLogout }: {
-  member: MemberInfo; weekly: WeeklyRow[]; payments: PaymentRow[]; payoutStatus: PayoutStatus | null;
+function MemberDashboard({ member, weekly, payments, payoutStatus, notifications, onRefresh, onLogout }: {
+  member: MemberInfo; weekly: WeeklyRow[]; payments: PaymentRow[]; payoutStatus: PayoutStatus | null; notifications: NotificationRow[];
   onRefresh: () => void; onLogout: () => void;
 }) {
   const [showPay, setShowPay] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const currentWeek = weekly.find((w) => w.weekNumber === member.currentWeekNumber);
   const totalPaid = weekly.reduce((s, w) => s + w.verified, 0);
   const weeksPaidCount = weekly.filter((w) => w.status === "FULL").length;
+  const unreadCount = notifications.filter(n => !n.readAt).length;
+
+  async function openNotifications() {
+    setShowNotifications(true);
+    if (unreadCount > 0) {
+      await fetch("/api/member/notifications", { method: "POST" });
+      onRefresh(); // Refresh to update the badge count
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -104,7 +122,18 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, on
             <div className="text-xs opacity-90 mb-1">Welcome back 👋</div>
             <div className="text-2xl font-bold">{member.fullName}</div>
           </div>
-          <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-1.5 rounded-lg text-xs font-semibold">Sign Out</button>
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <button onClick={openNotifications} className="relative bg-white/20 hover:bg-white/30 transition p-2 rounded-xl">
+              <span className="text-xl">🔔</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-green-600">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2 rounded-xl text-xs font-semibold">Sign Out</button>
+          </div>
         </div>
       </header>
 
@@ -207,11 +236,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, on
                   <PaymentStatusBadge status={p.status} />
                 </div>
               ))}
-              {payments.length > 5 && (
-                <div className="text-center pt-2">
-                  <span className="text-xs text-green-700 font-semibold cursor-pointer">View all payments →</span>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -233,8 +257,13 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, onRefresh, on
         </div>
       </div>
 
+      {/* MODALS */}
       {showPay && currentWeek && (
         <PaymentModal expected={currentWeek.expected} onClose={() => setShowPay(false)} onSuccess={() => { setShowPay(false); onRefresh(); }} />
+      )}
+
+      {showNotifications && (
+        <NotificationModal notifications={notifications} onClose={() => setShowNotifications(false)} />
       )}
     </div>
   );
@@ -253,6 +282,41 @@ function PaymentStatusBadge({ status }: { status: string }) {
   if (status === "VERIFIED") return <span className="text-xs px-2 py-1 rounded-full font-bold bg-green-100 text-green-700">Verified</span>;
   if (status === "REJECTED") return <span className="text-xs px-2 py-1 rounded-full font-bold bg-red-100 text-red-700">Rejected</span>;
   return <span className="text-xs px-2 py-1 rounded-full font-bold bg-yellow-100 text-yellow-700">Pending</span>;
+}
+
+// ==================== NOTIFICATION MODAL ====================
+
+function NotificationModal({ notifications, onClose }: { notifications: NotificationRow[]; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
+          <h2 className="text-lg font-bold text-slate-800">Notifications</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        
+        <div className="p-5 overflow-y-auto space-y-3">
+          {notifications.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <div className="text-4xl mb-2">📭</div>
+              <p className="text-sm">You have no notifications yet.</p>
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <div key={n.id} className={`p-4 rounded-xl border ${n.readAt ? 'bg-white border-slate-100' : 'bg-green-50 border-green-200'}`}>
+                <div className="flex justify-between items-start mb-1">
+                  <div className="font-bold text-slate-800 text-sm">{n.title}</div>
+                  {!n.readAt && <span className="w-2 h-2 rounded-full bg-green-500 mt-1"></span>}
+                </div>
+                <div className="text-sm text-slate-600 leading-snug">{n.message}</div>
+                <div className="text-[10px] text-slate-400 mt-2 uppercase font-semibold">{new Date(n.createdAt).toLocaleString()}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ==================== PAYMENT MODAL ====================
