@@ -6,7 +6,6 @@ export default function AdminPage() {
   const [adminName, setAdminName] = useState("");
   const [currentView, setCurrentView] = useState("dashboard");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [pendingCount, setPendingCount] = useState(0);
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -17,14 +16,6 @@ export default function AdminPage() {
       .then((d) => { if (d?.admin) { setAdminName(d.admin.fullName); setLoggedIn(true); } })
       .finally(() => setChecking(false));
   }, []);
-
-  useEffect(() => {
-    if (!loggedIn) return;
-    fetch("/api/admin/payments/pending")
-      .then((r) => (r.ok ? r.json() : { payments: [] }))
-      .then((d) => setPendingCount((d.payments || []).length))
-      .catch(() => {});
-  }, [loggedIn, refreshKey]);
 
   function handleNavigate(view: string) {
     if (view !== "members") setSelectedMemberId(null);
@@ -40,7 +31,6 @@ export default function AdminPage() {
     <AdminShell
       adminName={adminName}
       currentView={currentView}
-      pendingCount={pendingCount}
       mobileMenuOpen={mobileMenuOpen}
       setMobileMenuOpen={setMobileMenuOpen}
       onNavigate={handleNavigate}
@@ -57,9 +47,9 @@ export default function AdminPage() {
         <MemberDetailView memberId={selectedMemberId} onBack={() => { setSelectedMemberId(null); setRefreshKey((k) => k + 1); }} />
       )}
       {currentView === "groups" && <GroupsView />}
-      {currentView === "approvals" && <ApprovalsView onChanged={() => setRefreshKey((k) => k + 1)} />}
+      {currentView === "payments" && <PaymentsView onChanged={() => setRefreshKey((k) => k + 1)} />}
       {currentView === "payouts" && <PayoutsView />}
-      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "approvals" && currentView !== "payouts" && <ComingSoon view={currentView} />}
+      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "payments" && currentView !== "payouts" && <ComingSoon view={currentView} />}
     </AdminShell>
   );
 }
@@ -99,14 +89,13 @@ function AdminLogin({ onSuccess }: { onSuccess: (name: string) => void }) {
   );
 }
 
-function AdminShell({ adminName, currentView, pendingCount, mobileMenuOpen, setMobileMenuOpen, onNavigate, onLogout, children }: { adminName: string; currentView: string; pendingCount: number; mobileMenuOpen: boolean; setMobileMenuOpen: (v: boolean) => void; onNavigate: (v: string) => void; onLogout: () => void; children: React.ReactNode; }) {
+function AdminShell({ adminName, currentView, mobileMenuOpen, setMobileMenuOpen, onNavigate, onLogout, children }: { adminName: string; currentView: string; mobileMenuOpen: boolean; setMobileMenuOpen: (v: boolean) => void; onNavigate: (v: string) => void; onLogout: () => void; children: React.ReactNode; }) {
   const navItems = [
     { id: "dashboard", icon: "🏠", label: "Dashboard" },
     { id: "members", icon: "👥", label: "Members" },
     { id: "groups", icon: "📁", label: "Groups" },
-    { id: "payments", icon: "💳", label: "Payments" },
+    { id: "payments", icon: "💳", label: "Payments" }, // Renamed from Approvals
     { id: "payouts", icon: "💰", label: "Payouts" },
-    { id: "approvals", icon: "✅", label: "Approvals", badge: pendingCount },
     { id: "reports", icon: "📊", label: "Reports" },
     { id: "settings", icon: "⚙️", label: "Settings" },
   ];
@@ -134,7 +123,6 @@ function AdminShell({ adminName, currentView, pendingCount, mobileMenuOpen, setM
             return (
               <button key={item.id} onClick={() => onNavigate(item.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer justify-between text-left" style={active ? { backgroundColor: "#16a34a" } : undefined}>
                 <span className="flex items-center gap-3"><span>{item.icon}</span><span>{item.label}</span></span>
-                {item.badge && item.badge > 0 ? <span className="bg-red-500 text-xs px-2 py-0.5 rounded-full">{item.badge}</span> : null}
               </button>
             );
           })}
@@ -149,7 +137,6 @@ function AdminShell({ adminName, currentView, pendingCount, mobileMenuOpen, setM
             <span className="font-bold text-lg text-slate-800">{navItems.find((n) => n.id === currentView)?.label || "Dashboard"}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🔔</span>
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>{adminName.charAt(0).toUpperCase()}</div>
             <span className="hidden sm:block text-sm font-semibold text-slate-700">{adminName}</span>
           </div>
@@ -191,19 +178,10 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
           <div key={kpi.label} className="rounded-2xl p-5 text-white relative overflow-hidden shadow" style={{ background: kpi.color }}>
             <div className="absolute right-3 top-3 text-6xl opacity-20">{kpi.icon}</div>
             <div className="text-sm opacity-90 mb-1">{kpi.label}</div>
-            <div className="text-3xl font-bold">
-              {loading ? <span className="opacity-50 text-xl">…</span> : kpi.value}
-            </div>
+            <div className="text-3xl font-bold">{loading ? <span className="opacity-50 text-xl">…</span> : kpi.value}</div>
             <div className="text-xs mt-2 opacity-90">{kpi.sub}</div>
           </div>
         ))}
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 shadow-sm">
-        <h3 className="font-bold text-slate-800 mb-4">Recent Payments</h3>
-        <div className="text-center py-12 text-slate-400 text-sm">
-          Go to the Approvals tab to manage pending payments.
-        </div>
       </div>
     </div>
   );
@@ -218,22 +196,14 @@ function GroupsView() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/groups")
-      .then(r => r.json())
-      .then(d => setGroups(d.groups || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetch("/api/admin/groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading groups…</div>;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Groups Overview</h2>
-        <p className="text-sm text-slate-500">Manage your 9 contribution tiers and their capacity.</p>
-      </div>
-
+      <div><h2 className="text-2xl font-bold text-slate-800">Groups Overview</h2><p className="text-sm text-slate-500">Manage your 9 contribution tiers and their capacity.</p></div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groups.map(g => {
           const isFull = g.availableSlots <= 0;
@@ -243,32 +213,178 @@ function GroupsView() {
           return (
             <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
               <div className="flex justify-between items-start mb-4">
-                <div>
-                  <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contribution</div>
-                  <div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div>
-                </div>
-                <div className={`text-xs px-2 py-1 rounded-full font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                  {isFull ? 'FULL' : `${g.availableSlots} slots left`}
-                </div>
+                <div><div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contribution</div><div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div></div>
+                <div className={`text-xs px-2 py-1 rounded-full font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{isFull ? 'FULL' : `${g.availableSlots} slots left`}</div>
               </div>
-
               <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Members</span>
-                  <span className="font-semibold text-slate-800">{g.currentMembers} / {g.maxMembers}</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
-                  <div className={`h-2 rounded-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }}></div>
-                </div>
+                <div className="flex justify-between text-sm"><span className="text-slate-500">Members</span><span className="font-semibold text-slate-800">{g.currentMembers} / {g.maxMembers}</span></div>
+                <div className="w-full bg-slate-100 rounded-full h-2"><div className={`h-2 rounded-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }}></div></div>
               </div>
-
-              <div className="bg-slate-50 rounded-xl p-3 flex justify-between items-center">
-                <div className="text-xs text-slate-500">Expected Payout</div>
-                <div className="font-bold text-green-700">GH₵{payout.toLocaleString()}</div>
-              </div>
+              <div className="bg-slate-50 rounded-xl p-3 flex justify-between items-center"><div className="text-xs text-slate-500">Expected Payout</div><div className="font-bold text-green-700">GH₵{payout.toLocaleString()}</div></div>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ==================== PAYMENTS VIEW (Previously Approvals) ====================
+
+type PaymentRow = {
+  id: string; reference: string; amount: number; method: string; status: string; date: string;
+  memberName: string; memberPhone: string; groupAmount: number; weekNumber: number;
+};
+
+function PaymentsView({ onChanged }: { onChanged: () => void }) {
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showRecordModal, setShowRecordModal] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/admin/payments/all")
+      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
+      .then((d) => setPayments(d.payments || []))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [refreshKey]);
+
+  function reload() { setRefreshKey((k) => k + 1); onChanged(); }
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading payments…</div>;
+  if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Payments Ledger</h2>
+          <p className="text-sm text-slate-500">Master record of all contributions.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={reload} className="text-sm font-semibold px-4 py-2.5 rounded-xl border-2 border-slate-200 text-slate-700">↻ Refresh</button>
+          <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="px-4 py-3 font-medium">Date / Time</th>
+                <th className="px-4 py-3 font-medium">Member</th>
+                <th className="px-4 py-3 font-medium">Week</th>
+                <th className="px-4 py-3 font-medium">Amount</th>
+                <th className="px-4 py-3 font-medium">Method</th>
+                <th className="px-4 py-3 font-medium">Ref</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-700">
+              {payments.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">No payments recorded yet.</td></tr>
+              ) : (
+                payments.map((p) => (
+                  <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 text-xs text-slate-500">{new Date(p.date).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-slate-800">{p.memberName}</div>
+                      <div className="text-xs text-slate-500">{p.memberPhone}</div>
+                    </td>
+                    <td className="px-4 py-3 font-medium">Wk {p.weekNumber}</td>
+                    <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
+    </div>
+  );
+}
+
+function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [members, setMembers] = useState<{id: string, fullName: string, phone: string}[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  
+  const [form, setForm] = useState({ memberId: "", amount: "", paymentMethod: "MTN_MOMO", transactionId: "" });
+
+  useEffect(() => {
+    fetch("/api/admin/members")
+      .then(r => r.json())
+      .then(d => setMembers((d.members || []).filter((m: any) => m.status === "ACTIVE")))
+      .catch(() => {})
+      .finally(() => setLoadingMembers(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setError(""); setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/payments/record", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed to record"); setSubmitting(false); return; }
+      onSuccess();
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">Record Payment</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Select Member *</label>
+            {loadingMembers ? <div className="text-sm text-slate-400 py-2">Loading members…</div> : (
+              <select required value={form.memberId} onChange={e => setForm({...form, memberId: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                <option value="">— Choose Member —</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>)}
+              </select>
+            )}
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
+            <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold text-lg" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
+            <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+              <option value="MTN_MOMO">MTN Mobile Money</option>
+              <option value="TELECEL_CASH">Telecel Cash</option>
+              <option value="AIRTELTIGO_MONEY">AirtelTigo Money</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CASH">Cash</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Transaction Ref (optional)</label>
+            <input type="text" value={form.transactionId} onChange={e => setForm({...form, transactionId: e.target.value})} placeholder="e.g. MoMo ID" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" />
+          </div>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+            <button type="submit" disabled={submitting || loadingMembers} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Payment"}</button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -287,11 +403,7 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/members")
-      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
-      .then((d) => setMembers(d.members || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetch("/api/admin/members").then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; }).then((d) => setMembers(d.members || [])).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [refreshKey]);
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading members…</div>;
@@ -306,9 +418,7 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
         </div>
         {members.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-            <div className="text-5xl mb-3">👥</div>
-            <h3 className="font-bold text-slate-800 mb-1">No members yet</h3>
-            <p className="text-sm text-slate-500 mb-6">Members you add will appear here.</p>
+            <div className="text-5xl mb-3">👥</div><h3 className="font-bold text-slate-800 mb-1">No members yet</h3><p className="text-sm text-slate-500 mb-6">Members you add will appear here.</p>
             <button onClick={() => setShowAdd(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Add Your First Member</button>
           </div>
         ) : (
@@ -394,7 +504,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
             </Field>
             <Field label="Preferred Payout Week (optional)"><input type="number" min="1" max="20" value={form.preferredPayoutWeek} onChange={(e) => update("preferredPayoutWeek", e.target.value)} placeholder="1–20" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
           </div>
-          <Field label="Login Password * (for the member)"><input type="text" required minLength={6} value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="Min 6 characters" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" /></Field>
+          <Field label="Login Password / PIN * (for the member to log in)"><input type="text" required minLength={4} value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="Set a password or 4-digit PIN" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-mono" /></Field>
           {selectedGroup && (
             <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
               <div className="font-semibold mb-1" style={{ color: "#15803d" }}>Preview</div>
@@ -436,18 +546,12 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   const [showEdit, setShowEdit] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
   const [busy, setBusy] = useState(false);
-  
-  // New Note State
   const [newNote, setNewNote] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/admin/members/detail?id=${memberId}`)
-      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
-      .then((d) => setM(d.member))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetch(`/api/admin/members/detail?id=${memberId}`).then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; }).then((d) => setM(d.member)).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [memberId, refreshKey]);
 
   async function toggleActive() {
@@ -466,19 +570,10 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   }
 
   async function handleAddNote(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newNote.trim()) return;
-    setSubmittingNote(true);
+    e.preventDefault(); if (!newNote.trim()) return; setSubmittingNote(true);
     try {
-      const res = await fetch("/api/admin/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: m?.id, note: newNote }),
-      });
-      if (res.ok) {
-        setNewNote("");
-        setRefreshKey((k) => k + 1);
-      }
+      const res = await fetch("/api/admin/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId: m?.id, note: newNote }) });
+      if (res.ok) { setNewNote(""); setRefreshKey((k) => k + 1); }
     } catch { alert("Failed to save note"); }
     finally { setSubmittingNote(false); }
   }
@@ -511,9 +606,7 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
         <div className="px-6 pb-6 flex flex-wrap gap-2">
           <button onClick={() => setShowEdit(true)} disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 disabled:opacity-60" style={{ borderColor: "#16a34a", color: "#15803d" }}>✏️ Edit Member</button>
           <button onClick={() => setShowGroup(true)} disabled={busy} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700 disabled:opacity-60">🔄 Change Group</button>
-          <button onClick={toggleActive} disabled={busy} className={`text-sm font-semibold px-4 py-2 rounded-xl border-2 disabled:opacity-60 ${m.status === "ACTIVE" ? "border-red-200 text-red-600" : "border-green-200 text-green-700"}`}>
-            {busy ? "…" : m.status === "ACTIVE" ? "⏸️ Deactivate" : "▶️ Activate"}
-          </button>
+          <button onClick={toggleActive} disabled={busy} className={`text-sm font-semibold px-4 py-2 rounded-xl border-2 disabled:opacity-60 ${m.status === "ACTIVE" ? "border-red-200 text-red-600" : "border-green-200 text-green-700"}`}>{busy ? "…" : m.status === "ACTIVE" ? "⏸️ Deactivate" : "▶️ Activate"}</button>
         </div>
       </div>
 
@@ -557,10 +650,7 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
           <div className="space-y-2">
             {m.payouts.map((p) => (
               <div key={p.id} className="flex justify-between items-center border-b border-slate-100 py-2">
-                <div>
-                  <div className="text-sm font-semibold">GH₵{p.actualAmount || p.expectedAmount}</div>
-                  <div className="text-xs text-slate-500">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : "Scheduled"}</div>
-                </div>
+                <div><div className="text-sm font-semibold">GH₵{p.actualAmount || p.expectedAmount}</div><div className="text-xs text-slate-500">{p.paidAt ? new Date(p.paidAt).toLocaleDateString() : "Scheduled"}</div></div>
                 <span className={`text-xs px-2 py-1 rounded-full font-semibold ${p.status === "PAID" ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-600"}`}>{p.status}</span>
               </div>
             ))}
@@ -568,25 +658,14 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
         )}
       </div>
 
-      {/* ADMIN NOTES */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
         <h3 className="font-bold text-slate-800 mb-4">Admin Notes (Private)</h3>
-        
         <form onSubmit={handleAddNote} className="mb-6 flex gap-2">
-          <input 
-            type="text" 
-            value={newNote} 
-            onChange={(e) => setNewNote(e.target.value)} 
-            placeholder="Write a private note about this member..." 
-            className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2" 
-          />
-          <button type="submit" disabled={submittingNote || !newNote.trim()} className="text-white font-semibold px-4 py-2 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
-            {submittingNote ? "Saving..." : "Add Note"}
-          </button>
+          <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Write a private note..." className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2" />
+          <button type="submit" disabled={submittingNote || !newNote.trim()} className="text-white font-semibold px-4 py-2 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submittingNote ? "..." : "Add Note"}</button>
         </form>
-
         {m.notes.length === 0 ? (
-          <div className="text-center py-4 text-slate-400 text-sm">No notes yet. Notes are only visible to you.</div>
+          <div className="text-center py-4 text-slate-400 text-sm">No notes yet.</div>
         ) : (
           <div className="space-y-3">
             {m.notes.map((n) => (
@@ -608,15 +687,7 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
 function EditMemberModal({ member, onClose, onSuccess }: { member: MemberDetail; onClose: () => void; onSuccess: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    fullName: member.fullName,
-    phone: member.phone,
-    whatsappNumber: member.whatsappNumber || "",
-    dateOfBirth: member.dateOfBirth.substring(0, 10),
-    address: member.address,
-    emergencyContact: member.emergencyContact,
-    preferredPayoutWeek: member.preferredPayoutWeek ? String(member.preferredPayoutWeek) : "",
-  });
+  const [form, setForm] = useState({ fullName: member.fullName, phone: member.phone, whatsappNumber: member.whatsappNumber || "", dateOfBirth: member.dateOfBirth.substring(0, 10), address: member.address, emergencyContact: member.emergencyContact, preferredPayoutWeek: member.preferredPayoutWeek ? String(member.preferredPayoutWeek) : "" });
 
   function update(field: string, value: string) { setForm((f) => ({ ...f, [field]: value })); }
 
@@ -665,9 +736,7 @@ function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail
   const [error, setError] = useState("");
   const [newGroupId, setNewGroupId] = useState("");
 
-  useEffect(() => {
-    fetch("/api/admin/groups").then((r) => r.json()).then((d) => setGroups(d.groups || [])).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { fetch("/api/admin/groups").then((r) => r.json()).then((d) => setGroups(d.groups || [])).catch(() => {}).finally(() => setLoading(false)); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError("");
@@ -675,10 +744,7 @@ function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail
     if (newGroupId === member.group.id) { setError("This is already the member's current group."); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/members/update", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: member.id, fullName: member.fullName, phone: member.phone, whatsappNumber: member.whatsappNumber, dateOfBirth: member.dateOfBirth, address: member.address, emergencyContact: member.emergencyContact, preferredPayoutWeek: member.preferredPayoutWeek, groupId: newGroupId }),
-      });
+      const res = await fetch("/api/admin/members/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId: member.id, fullName: member.fullName, phone: member.phone, whatsappNumber: member.whatsappNumber, dateOfBirth: member.dateOfBirth, address: member.address, emergencyContact: member.emergencyContact, preferredPayoutWeek: member.preferredPayoutWeek, groupId: newGroupId }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed"); setSubmitting(false); return; }
       onSuccess();
@@ -693,20 +759,13 @@ function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-slate-50 rounded-xl p-3 text-sm">
-            <div className="text-slate-500 text-xs">Current group</div>
-            <div className="font-bold text-slate-800">GH₵{member.group.contributionAmount}</div>
-          </div>
+          <div className="bg-slate-50 rounded-xl p-3 text-sm"><div className="text-slate-500 text-xs">Current group</div><div className="font-bold text-slate-800">GH₵{member.group.contributionAmount}</div></div>
           <div>
             <label className="text-sm font-semibold text-slate-700">Move to group *</label>
-            {loading ? (
-              <div className="text-slate-400 text-sm py-2">Loading groups…</div>
-            ) : (
+            {loading ? (<div className="text-slate-400 text-sm py-2">Loading groups…</div>) : (
               <select required value={newGroupId} onChange={(e) => setNewGroupId(e.target.value)} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
                 <option value="">— Select new group —</option>
-                {groups.filter((g) => g.id !== member.group.id).map((g) => (
-                  <option key={g.id} value={g.id} disabled={g.availableSlots <= 0}>GH₵{g.contributionAmount} ({g.availableSlots} slots left){g.availableSlots <= 0 ? " — FULL" : ""}</option>
-                ))}
+                {groups.filter((g) => g.id !== member.group.id).map((g) => (<option key={g.id} value={g.id} disabled={g.availableSlots <= 0}>GH₵{g.contributionAmount} ({g.availableSlots} slots left){g.availableSlots <= 0 ? " — FULL" : ""}</option>))}
               </select>
             )}
           </div>
@@ -721,151 +780,17 @@ function ChangeGroupModal({ member, onClose, onSuccess }: { member: MemberDetail
   );
 }
 
-// ==================== APPROVALS ====================
-
-type PendingPayment = { id: string; reference: string; amount: number; method: string; submittedAt: string; paymentDate: string; transactionId: string | null; memberId: string; memberName: string; memberPhone: string; groupAmount: number; weekNumber: number; };
-
-function ApprovalsView({ onChanged }: { onChanged: () => void }) {
-  const [payments, setPayments] = useState<PendingPayment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [rejectPayment, setRejectPayment] = useState<PendingPayment | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/admin/payments/pending")
-      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
-      .then((d) => setPayments(d.payments || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [refreshKey]);
-
-  function reload() { setRefreshKey((k) => k + 1); onChanged(); }
-
-  async function handleVerify(payment: PendingPayment) {
-    setBusyId(payment.id);
-    try {
-      const res = await fetch("/api/admin/payments/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: payment.id }) });
-      const data = await res.json();
-      if (!res.ok) { alert(data.error || "Failed to verify"); setBusyId(null); return; }
-      reload();
-    } catch { alert("Network error"); }
-    finally { setBusyId(null); }
-  }
-
-  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading pending payments…</div>;
-  if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div><h2 className="text-2xl font-bold text-slate-800">Pending Verification</h2><p className="text-sm text-slate-500">{payments.length} payment{payments.length === 1 ? "" : "s"} awaiting your review</p></div>
-        <button onClick={reload} className="text-sm font-semibold px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-700">↻ Refresh</button>
-      </div>
-      {payments.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-          <div className="text-5xl mb-3">✅</div>
-          <h3 className="font-bold text-slate-800 mb-1">All caught up</h3>
-          <p className="text-sm text-slate-500">No pending payments to review.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {payments.map((p) => (
-            <div key={p.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ backgroundColor: "#16a34a" }}>{p.memberName.charAt(0).toUpperCase()}</span>
-                    <div><div className="font-bold text-slate-800">{p.memberName}</div><div className="text-xs text-slate-500">{p.memberPhone} • Week {p.weekNumber} • GH₵{p.groupAmount} group</div></div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Amount</div><div className="font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</div></div>
-                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Method</div><div className="text-slate-800">{p.method.replace(/_/g, " ")}</div></div>
-                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Reference</div><div className="font-mono text-xs text-slate-700">{p.reference}</div></div>
-                    <div><div className="text-xs text-slate-400 uppercase font-semibold">Submitted</div><div className="text-slate-700 text-xs">{new Date(p.submittedAt).toLocaleString()}</div></div>
-                  </div>
-                  {p.transactionId && <div className="mt-3 text-xs text-slate-500"><span className="uppercase font-semibold text-slate-400">Member-supplied ref:</span> {p.transactionId}</div>}
-                </div>
-                <div className="flex sm:flex-col gap-2 sm:w-32">
-                  <button onClick={() => handleVerify(p)} disabled={busyId === p.id} className="flex-1 text-white font-semibold py-2.5 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{busyId === p.id ? "…" : "✓ Verify"}</button>
-                  <button onClick={() => setRejectPayment(p)} disabled={busyId === p.id} className="flex-1 font-semibold py-2.5 rounded-xl border-2 border-red-200 text-red-600 disabled:opacity-60">✕ Reject</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      {rejectPayment && <RejectModal payment={rejectPayment} onClose={() => setRejectPayment(null)} onSuccess={() => { setRejectPayment(null); reload(); }} />}
-    </div>
-  );
-}
-
-function RejectModal({ payment, onClose, onSuccess }: { payment: PendingPayment; onClose: () => void; onSuccess: () => void }) {
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError("");
-    if (!reason.trim()) { setError("A rejection reason is required."); return; }
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/admin/payments/reject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: payment.id, reason }) });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to reject"); setSubmitting(false); return; }
-      onSuccess();
-    } catch { setError("Network error. Please try again."); setSubmitting(false); }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]">
-      <div className="bg-white rounded-2xl w-full max-w-md">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-800">Reject Payment</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-800">
-            <div className="font-semibold mb-1">{payment.memberName}</div>
-            <div>GH₵{payment.amount.toLocaleString()} • {payment.reference}</div>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Reason for rejection *</label>
-            <textarea required rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Example: Payment reference could not be confirmed in our MoMo account." className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 resize-none" />
-            <div className="text-xs text-slate-500 mt-1">The member will see this reason and receive a notification.</div>
-          </div>
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#dc2626" }}>{submitting ? "Rejecting…" : "Reject Payment"}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ==================== PAYOUTS ====================
 
 type PayoutWeek = {
-  weekNumber: number;
-  weekId: string;
-  dueDate: string;
+  weekNumber: number; weekId: string; dueDate: string;
   assignedMember: { id: string; fullName: string; phone: string } | null;
   payout: { id: string; status: string; expectedAmount: number; actualAmount: number | null; paidAt: string | null } | null;
 };
-
 type PayoutGroup = {
-  id: string;
-  contributionAmount: number;
-  expectedPayout: number;
-  maxMembers: number;
-  memberCount: number;
+  id: string; contributionAmount: number; expectedPayout: number; maxMembers: number; memberCount: number;
   members: Array<{ id: string; fullName: string; phone: string }>;
-  cycleId: string | null;
-  weeks: PayoutWeek[];
+  cycleId: string | null; weeks: PayoutWeek[];
 };
 
 function PayoutsView() {
@@ -880,14 +805,7 @@ function PayoutsView() {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/payouts")
-      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
-      .then((d) => {
-        setGroups(d.groups || []);
-        if (d.groups && d.groups.length > 0 && !selectedGroupId) setSelectedGroupId(d.groups[0].id);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetch("/api/admin/payouts").then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; }).then((d) => { setGroups(d.groups || []); if (d.groups && d.groups.length > 0 && !selectedGroupId) setSelectedGroupId(d.groups[0].id); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
   }, [refreshKey]);
 
   async function handleUnassign(week: PayoutWeek) {
@@ -895,16 +813,11 @@ function PayoutsView() {
     if (!confirm(`Remove ${week.assignedMember.fullName} from Week ${week.weekNumber}?`)) return;
     setBusyWeekId(week.weekId);
     try {
-      const res = await fetch("/api/admin/payouts/unassign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekId: week.weekId }),
-      });
+      const res = await fetch("/api/admin/payouts/unassign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekId: week.weekId }) });
       const data = await res.json();
       if (!res.ok) { alert(data.error || "Failed"); setBusyWeekId(null); return; }
       setRefreshKey((k) => k + 1);
-    } catch { alert("Network error"); }
-    finally { setBusyWeekId(null); }
+    } catch { alert("Network error"); } finally { setBusyWeekId(null); }
   }
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading payouts…</div>;
@@ -915,19 +828,11 @@ function PayoutsView() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Payout Rotation</h2>
-        <p className="text-sm text-slate-500">Assign each member to one payout week per cycle. Members never see which week is theirs.</p>
-      </div>
-
+      <div><h2 className="text-2xl font-bold text-slate-800">Payout Rotation</h2><p className="text-sm text-slate-500">Assign each member to one payout week per cycle. Members never see which week is theirs.</p></div>
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <label className="text-sm font-semibold text-slate-700">Select group</label>
         <select value={selectedGroupId || ""} onChange={(e) => setSelectedGroupId(e.target.value)} className="mt-1 w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
-          {groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              GH₵{g.contributionAmount} group ({g.memberCount}/{g.maxMembers} members)
-            </option>
-          ))}
+          {groups.map((g) => (<option key={g.id} value={g.id}>GH₵{g.contributionAmount} group ({g.memberCount}/{g.maxMembers} members)</option>))}
         </select>
       </div>
 
@@ -938,22 +843,12 @@ function PayoutsView() {
             <div className="bg-white rounded-2xl p-5 shadow-sm"><div className="text-xs text-slate-400 uppercase font-semibold mb-1">Members</div><div className="text-2xl font-bold text-slate-800">{selectedGroup.memberCount} / {selectedGroup.maxMembers}</div></div>
             <div className="rounded-2xl p-5 shadow-sm" style={{ backgroundColor: "#f0fdf4" }}><div className="text-xs font-semibold uppercase mb-1" style={{ color: "#15803d" }}>Payout per week</div><div className="text-2xl font-bold" style={{ color: "#052e16" }}>GH₵{selectedGroup.expectedPayout.toLocaleString()}</div></div>
           </div>
-
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-slate-100">
-              <h3 className="font-bold text-slate-800">20-Week Schedule</h3>
-              <p className="text-xs text-slate-500 mt-1">{assignedMemberIds.length} of 20 weeks assigned</p>
-            </div>
+            <div className="p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800">20-Week Schedule</h3><p className="text-xs text-slate-500 mt-1">{assignedMemberIds.length} of 20 weeks assigned</p></div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Week</th>
-                    <th className="px-4 py-3 font-medium">Due Date</th>
-                    <th className="px-4 py-3 font-medium">Assigned Member</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium text-right">Action</th>
-                  </tr>
+                  <tr><th className="px-4 py-3 font-medium">Week</th><th className="px-4 py-3 font-medium">Due Date</th><th className="px-4 py-3 font-medium">Assigned Member</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium text-right">Action</th></tr>
                 </thead>
                 <tbody className="text-slate-700">
                   {selectedGroup.weeks.map((w) => {
@@ -969,9 +864,7 @@ function PayoutsView() {
                               <span className="font-semibold text-slate-800">{w.assignedMember.fullName}</span>
                               <span className="text-xs text-slate-500">{w.assignedMember.phone}</span>
                             </div>
-                          ) : (
-                            <span className="text-slate-400 text-xs italic">— Unassigned —</span>
-                          )}
+                          ) : (<span className="text-slate-400 text-xs italic">— Unassigned —</span>)}
                         </td>
                         <td className="px-4 py-3">
                           {status === "PAID" && <span className="text-xs px-2 py-1 rounded-full font-semibold bg-green-100 text-green-700">✓ Paid</span>}
@@ -979,18 +872,14 @@ function PayoutsView() {
                           {status === "UNASSIGNED" && <span className="text-xs px-2 py-1 rounded-full font-semibold bg-slate-200 text-slate-600">Unassigned</span>}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {!w.assignedMember && (
-                            <button onClick={() => setAssignWeek(w)} className="text-xs font-semibold text-white px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#16a34a" }}>Assign</button>
-                          )}
+                          {!w.assignedMember && (<button onClick={() => setAssignWeek(w)} className="text-xs font-semibold text-white px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#16a34a" }}>Assign</button>)}
                           {w.assignedMember && w.payout?.status === "SCHEDULED" && (
                             <div className="flex gap-2 justify-end">
                               <button onClick={() => setMarkPaidPayout(w)} className="text-xs font-semibold text-white px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#16a34a" }}>Mark as Paid</button>
                               <button onClick={() => handleUnassign(w)} disabled={busyWeekId === w.weekId} className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-red-200 text-red-600 disabled:opacity-60">Unassign</button>
                             </div>
                           )}
-                          {w.assignedMember && w.payout?.status === "PAID" && (
-                            <span className="text-xs text-slate-400">Completed</span>
-                          )}
+                          {w.assignedMember && w.payout?.status === "PAID" && (<span className="text-xs text-slate-400">Completed</span>)}
                         </td>
                       </tr>
                     );
@@ -1001,24 +890,8 @@ function PayoutsView() {
           </div>
         </>
       )}
-
-      {assignWeek && selectedGroup && (
-        <AssignModal
-          week={assignWeek}
-          group={selectedGroup}
-          alreadyAssignedIds={assignedMemberIds}
-          onClose={() => setAssignWeek(null)}
-          onSuccess={() => { setAssignWeek(null); setRefreshKey((k) => k + 1); }}
-        />
-      )}
-
-      {markPaidPayout && (
-        <MarkPaidModal
-          week={markPaidPayout}
-          onClose={() => setMarkPaidPayout(null)}
-          onSuccess={() => { setMarkPaidPayout(null); setRefreshKey((k) => k + 1); }}
-        />
-      )}
+      {assignWeek && selectedGroup && <AssignModal week={assignWeek} group={selectedGroup} alreadyAssignedIds={assignedMemberIds} onClose={() => setAssignWeek(null)} onSuccess={() => { setAssignWeek(null); setRefreshKey((k) => k + 1); }} />}
+      {markPaidPayout && <MarkPaidModal week={markPaidPayout} onClose={() => setMarkPaidPayout(null)} onSuccess={() => { setMarkPaidPayout(null); setRefreshKey((k) => k + 1); }} />}
     </div>
   );
 }
@@ -1027,7 +900,6 @@ function AssignModal({ week, group, alreadyAssignedIds, onClose, onSuccess }: { 
   const [memberId, setMemberId] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
   const available = group.members.filter((m) => !alreadyAssignedIds.includes(m.id));
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1035,10 +907,7 @@ function AssignModal({ week, group, alreadyAssignedIds, onClose, onSuccess }: { 
     if (!memberId) { setError("Please select a member."); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/payouts/assign", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekId: week.weekId, memberId }),
-      });
+      const res = await fetch("/api/admin/payouts/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekId: week.weekId, memberId }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to assign"); setSubmitting(false); return; }
       onSuccess();
@@ -1053,28 +922,17 @@ function AssignModal({ week, group, alreadyAssignedIds, onClose, onSuccess }: { 
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-slate-50 rounded-xl p-3 text-sm">
-            <div className="text-slate-500 text-xs">Payout week due date</div>
-            <div className="font-bold text-slate-800">{new Date(week.dueDate).toLocaleDateString()}</div>
-            <div className="text-slate-500 text-xs mt-2">Expected payout</div>
-            <div className="font-bold text-slate-800">GH₵{group.expectedPayout.toLocaleString()}</div>
-          </div>
+          <div className="bg-slate-50 rounded-xl p-3 text-sm"><div className="text-slate-500 text-xs">Payout week due date</div><div className="font-bold text-slate-800">{new Date(week.dueDate).toLocaleDateString()}</div><div className="text-slate-500 text-xs mt-2">Expected payout</div><div className="font-bold text-slate-800">GH₵{group.expectedPayout.toLocaleString()}</div></div>
           <div>
             <label className="text-sm font-semibold text-slate-700">Select member *</label>
-            {available.length === 0 ? (
-              <div className="text-sm text-red-600 mt-2">All members in this group are already assigned to payout weeks.</div>
-            ) : (
+            {available.length === 0 ? (<div className="text-sm text-red-600 mt-2">All members in this group are already assigned.</div>) : (
               <select required value={memberId} onChange={(e) => setMemberId(e.target.value)} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
                 <option value="">— Choose a member —</option>
-                {available.map((m) => (
-                  <option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>
-                ))}
+                {available.map((m) => (<option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>))}
               </select>
             )}
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">
-            ⓘ The member will <strong>not</strong> see this assignment on their dashboard. Only you can see it.
-          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">ⓘ The member will <strong>not</strong> see this assignment. Only you can see it.</div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
@@ -1098,10 +956,7 @@ function MarkPaidModal({ week, onClose, onSuccess }: { week: PayoutWeek; onClose
     if (!amt || amt <= 0) { setError("Please enter a valid amount."); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/payouts/mark-paid", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payoutId: week.payout?.id, actualAmount: amt }),
-      });
+      const res = await fetch("/api/admin/payouts/mark-paid", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payoutId: week.payout?.id, actualAmount: amt }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to mark paid"); setSubmitting(false); return; }
       onSuccess();
@@ -1116,19 +971,13 @@ function MarkPaidModal({ week, onClose, onSuccess }: { week: PayoutWeek; onClose
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
-            <div className="text-xs text-green-700">Recipient</div>
-            <div className="font-bold text-slate-800">{week.assignedMember?.fullName}</div>
-            <div className="text-xs text-slate-500 mt-1">Week {week.weekNumber} • {week.assignedMember?.phone}</div>
-          </div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm"><div className="text-xs text-green-700">Recipient</div><div className="font-bold text-slate-800">{week.assignedMember?.fullName}</div><div className="text-xs text-slate-500 mt-1">Week {week.weekNumber} • {week.assignedMember?.phone}</div></div>
           <div>
             <label className="text-sm font-semibold text-slate-700">Amount sent (GH₵) *</label>
             <input type="number" step="0.01" min="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" />
-            <div className="text-xs text-slate-500 mt-1">Expected: GH₵{expected.toLocaleString()} (20 × GH₵{Math.round((expected + 50) / 20)} − GH₵50 fee)</div>
+            <div className="text-xs text-slate-500 mt-1">Expected: GH₵{expected.toLocaleString()}</div>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">
-            ⓘ Only click <strong>Mark as Paid</strong> after you have actually sent the money. The member will be notified immediately.
-          </div>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-xs text-yellow-800">ⓘ Only click <strong>Mark as Paid</strong> after you have actually sent the money. The member will be notified immediately.</div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
