@@ -113,7 +113,6 @@ function AdminShell({ adminName, currentView, pendingCount, mobileMenuOpen, setM
 
   return (
     <div className="flex min-h-screen bg-slate-50 relative">
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
@@ -437,6 +436,10 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
   const [showEdit, setShowEdit] = useState(false);
   const [showGroup, setShowGroup] = useState(false);
   const [busy, setBusy] = useState(false);
+  
+  // New Note State
+  const [newNote, setNewNote] = useState("");
+  const [submittingNote, setSubmittingNote] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -460,6 +463,24 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
       setRefreshKey((k) => k + 1);
     } catch { alert("Network error"); }
     finally { setBusy(false); }
+  }
+
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newNote.trim()) return;
+    setSubmittingNote(true);
+    try {
+      const res = await fetch("/api/admin/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: m?.id, note: newNote }),
+      });
+      if (res.ok) {
+        setNewNote("");
+        setRefreshKey((k) => k + 1);
+      }
+    } catch { alert("Failed to save note"); }
+    finally { setSubmittingNote(false); }
   }
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading member…</div>;
@@ -547,7 +568,36 @@ function MemberDetailView({ memberId, onBack }: { memberId: string; onBack: () =
         )}
       </div>
 
-      <div className="bg-white rounded-2xl p-6 shadow-sm"><h3 className="font-bold text-slate-800 mb-4">Admin Notes</h3><div className="text-center py-8 text-slate-400 text-sm">No notes yet. Notes feature coming soon.</div></div>
+      {/* ADMIN NOTES */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <h3 className="font-bold text-slate-800 mb-4">Admin Notes (Private)</h3>
+        
+        <form onSubmit={handleAddNote} className="mb-6 flex gap-2">
+          <input 
+            type="text" 
+            value={newNote} 
+            onChange={(e) => setNewNote(e.target.value)} 
+            placeholder="Write a private note about this member..." 
+            className="flex-1 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2" 
+          />
+          <button type="submit" disabled={submittingNote || !newNote.trim()} className="text-white font-semibold px-4 py-2 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>
+            {submittingNote ? "Saving..." : "Add Note"}
+          </button>
+        </form>
+
+        {m.notes.length === 0 ? (
+          <div className="text-center py-4 text-slate-400 text-sm">No notes yet. Notes are only visible to you.</div>
+        ) : (
+          <div className="space-y-3">
+            {m.notes.map((n) => (
+              <div key={n.id} className="border-l-4 border-green-500 pl-3 py-1 bg-slate-50 rounded-r-lg">
+                <div className="text-sm text-slate-800">{n.note}</div>
+                <div className="text-[10px] text-slate-400 mt-1 uppercase font-semibold">{new Date(n.createdAt).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showEdit && m && <EditMemberModal member={m} onClose={() => setShowEdit(false)} onSuccess={() => { setShowEdit(false); setRefreshKey((k) => k + 1); }} />}
       {showGroup && m && <ChangeGroupModal member={m} onClose={() => setShowGroup(false)} onSuccess={() => { setShowGroup(false); setRefreshKey((k) => k + 1); }} />}
@@ -1092,4 +1142,4 @@ function MarkPaidModal({ week, onClose, onSuccess }: { week: PayoutWeek; onClose
 
 function ComingSoon({ view }: { view: string }) {
   return (<div className="bg-white rounded-2xl p-12 text-center shadow-sm"><div className="text-5xl mb-3">🚧</div><h3 className="font-bold text-slate-800 mb-1 capitalize">{view}</h3><p className="text-sm text-slate-500">This section is coming in the next stage.</p></div>);
-}
+
