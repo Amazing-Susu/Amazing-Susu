@@ -57,7 +57,6 @@ export async function GET() {
     };
   });
 
-  // Payout info (never expose which week is assigned)
   const paidPayout = member.payouts.find((p) => p.status === "PAID");
   const scheduledPayout = member.payouts.find((p) => p.status === "SCHEDULED");
 
@@ -66,6 +65,7 @@ export async function GET() {
       id: member.id,
       fullName: member.fullName,
       phone: member.phone,
+      joinedAt: member.joinedAt.toISOString(), // <-- ADDED THIS
       groupAmount: contributionAmount,
       expectedPayout,
       currentWeekNumber,
@@ -82,11 +82,7 @@ export async function GET() {
       rejectionReason: p.rejectionReason,
     })),
     payoutStatus: paidPayout
-      ? {
-          state: "RECEIVED",
-          amount: Number(paidPayout.actualAmount || paidPayout.expectedAmount),
-          paidAt: paidPayout.paidAt?.toISOString() || null,
-        }
+      ? { state: "RECEIVED", amount: Number(paidPayout.actualAmount || paidPayout.expectedAmount), paidAt: paidPayout.paidAt?.toISOString() || null }
       : scheduledPayout
       ? { state: "SCHEDULED", amount: Number(scheduledPayout.expectedAmount) }
       : { state: "PENDING", amount: expectedPayout },
