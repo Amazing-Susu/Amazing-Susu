@@ -57,15 +57,15 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
     <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "linear-gradient(135deg, #f0fdf4, #d1fae5)" }}>
       <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-xl">
         <div className="text-center mb-6">
-          <div className="text-5xl mb-2">🌱</div>
-          <h1 className="text-2xl font-bold" style={{ color: "#0a3d2a" }}>Amazing <span style={{ color: "#16a34a" }}>Susu</span></h1>
+          <div className="text-5xl mb-2">🌳</div>
+          <h1 className="text-2xl font-extrabold" style={{ color: "#0a3d2a" }}>Amazing Grace <span style={{ color: "#16a34a" }}>Susu</span></h1>
           <p className="text-sm text-slate-500 mt-1">Member Login</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
           <div><label className="text-sm font-semibold text-slate-700">Phone Number</label><input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
           <div><label className="text-sm font-semibold text-slate-700">Password / PIN</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1 w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2" /></div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <button type="submit" disabled={loading} className="w-full text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{loading ? "Signing in…" : "Sign In"}</button>
+          <button type="submit" disabled={loading} className="w-full text-white font-bold py-3 rounded-xl disabled:opacity-60 shadow-lg" style={{ backgroundColor: "#16a34a" }}>{loading ? "Signing in…" : "Sign In"}</button>
         </form>
       </div>
     </div>
@@ -89,19 +89,40 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
+      {/* BOLD BRANDED HEADER */}
       <header className="text-white px-5 pt-8 pb-24 rounded-b-[2.5rem]" style={{ backgroundColor: "#16a34a" }}>
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div>
-            <div className="text-xs opacity-90 mb-1">Welcome back 👋</div>
-            <div className="text-2xl font-bold">{member.fullName}</div>
-          </div>
+        <div className="max-w-md mx-auto space-y-6">
+          
+          {/* Logo & Brand Name */}
           <div className="flex items-center gap-3">
-            <button onClick={openNotifications} className="relative bg-white/20 hover:bg-white/30 transition p-2 rounded-xl">
-              <span className="text-xl">🔔</span>
-              {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-green-600">{unreadCount}</span>}
-            </button>
-            <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2 rounded-xl text-xs font-semibold">Sign Out</button>
+            <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-sm shadow-inner">
+              <span className="text-3xl">🌳</span>
+            </div>
+            <div>
+              <div className="text-2xl font-extrabold tracking-tight leading-tight">
+                Amazing Grace Susu
+              </div>
+              <div className="text-[10px] font-medium tracking-widest text-green-100 uppercase">
+                Save Together • Grow Together
+              </div>
+            </div>
           </div>
+
+          {/* User Info & Actions */}
+          <div className="flex items-center justify-between border-t border-green-500/50 pt-5">
+            <div>
+              <div className="text-xs text-green-100 mb-1">Welcome back 👋</div>
+              <div className="text-2xl font-bold">{member.fullName}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={openNotifications} className="relative bg-white/20 hover:bg-white/30 transition p-2.5 rounded-xl">
+                <span className="text-xl">🔔</span>
+                {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-green-600">{unreadCount}</span>}
+              </button>
+              <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2.5 rounded-xl text-xs font-bold">Sign Out</button>
+            </div>
+          </div>
+
         </div>
       </header>
 
@@ -148,7 +169,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
           </div>
         )}
 
-        {/* NO PAY BUTTON HERE ANYMORE. JUST A STATUS VIEW. */}
         {currentWeek && (
           <div className="bg-white rounded-2xl p-5 shadow-md border border-slate-100 flex items-center justify-between">
             <div>
