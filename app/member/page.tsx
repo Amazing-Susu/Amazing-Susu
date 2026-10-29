@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import InstallBanner from "./InstallBanner";
 
 type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; };
@@ -16,26 +16,56 @@ export default function MemberPage() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const prevUnreadCount = useRef(0);
 
+  // Initial load for dashboard data
   useEffect(() => {
-    fetch("/api/member/me").then((r) => (r.ok ? r.json() : null)).then((d) => {
+    fetch("/api/member/me", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
         if (d?.member) {
           setMember(d.member); setWeekly(d.weeklyStatus || []); setPayments(d.payments || []); setPayoutStatus(d.payoutStatus || null);
+          
+          // Play a subtle alarm on load if current week is unpaid
+          const current = (d.weeklyStatus || []).find((w: any) => w.weekNumber === d.member.currentWeekNumber);
+          if (current && current.status !== "FULL") {
+            setTimeout(() => playAlarm(), 1000); // Wait 1 second for page to settle
+          }
         }
       }).finally(() => setChecking(false));
   }, [refreshKey]);
 
+  // Notification poller (checks every 10 seconds)
   useEffect(() => {
     function fetchNotifications() {
-      fetch("/api/member/notifications")
+      fetch("/api/member/notifications", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : { notifications: [] }))
-        .then((d) => setNotifications(d.notifications || []))
+        .then((d) => {
+          const notifs = d.notifications || [];
+          setNotifications(notifs);
+          
+          const unread = notifs.filter((n: any) => !n.readAt).length;
+          // Play sound if unread count increased (new notification arrived)
+          if (unread > prevUnreadCount.current && prevUnreadCount.current !== 0) {
+            playAlarm();
+          }
+          prevUnreadCount.current = unread;
+        })
         .catch(() => {});
     }
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+
+    fetchNotifications(); 
+    const interval = setInterval(fetchNotifications, 10000); // 10 seconds
+    return () => clearInterval(interval); 
   }, []);
+
+  function playAlarm() {
+    if (audioRef.current) {
+      audioRef.current.play().catch(e => console.log("Audio blocked by browser:", e));
+    }
+  }
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading…</div></div>;
   
@@ -48,6 +78,9 @@ export default function MemberPage() {
 
   return (
     <>
+      {/* Hidden Audio Player for Alarm */}
+      <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto" />
+
       <MemberDashboard
         member={member} weekly={weekly} payments={payments} payoutStatus={payoutStatus} notifications={notifications}
         onRefresh={() => setRefreshKey((k) => k + 1)}
@@ -137,7 +170,7 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
             <div className="flex items-center gap-2">
               <button onClick={openNotifications} className="relative bg-white/20 hover:bg-white/30 transition p-2.5 rounded-xl">
                 <span className="text-xl">🔔</span>
-                {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-green-600">{unreadCount}</span>}
+                {unreadCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-green-600 animate-pulse">{unreadCount}</span>}
               </button>
               <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2.5 rounded-xl text-xs font-bold">Sign Out</button>
             </div>
@@ -154,6 +187,19 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
             <div className="text-xs text-slate-400 mt-1">Joined: {new Date(member.joinedAt).toLocaleDateString()}</div>
           </div>
         </div>
+
+        {/* PAYMENT DUE ALARM BANNER */}
+        {currentWeek && currentWeek.status !== "FULL" && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🔔</span>
+              <div>
+                <div className="text-sm font-bold text-red-700">Payment Due for Week {currentWeek.weekNumber}</div>
+                <div className="text-xs text-red-600 font-medium">Please send GH₵{currentWeek.expected} to the Admin.</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-2xl p-3 text-center shadow-sm border border-slate-100">
@@ -185,16 +231,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
               </div>
               <div className="text-3xl">{payoutStatus.state === "RECEIVED" ? "🎉" : "⏳"}</div>
             </div>
-          </div>
-        )}
-
-        {currentWeek && (
-          <div className="bg-white rounded-2xl p-5 shadow-md border border-slate-100 flex items-center justify-between">
-            <div>
-              <div className="text-xs text-slate-500 font-semibold uppercase">Week {currentWeek.weekNumber} Status</div>
-              <div className="text-sm font-bold text-slate-800 mt-1">GH₵{currentWeek.verified} / GH₵{currentWeek.expected}</div>
-            </div>
-            <StatusBadge status={currentWeek.status} />
           </div>
         )}
 
