@@ -43,6 +43,7 @@ export default function AdminPage() {
       {currentView === "payouts" && <PayoutsView />}
       {currentView === "reports" && <ReportsView refreshKey={refreshKey} />}
       {currentView === "settings" && <SettingsView />}
+      {currentView === "passwords" && <PasswordsView />}
     </AdminShell>
   );
 }
@@ -90,6 +91,7 @@ function AdminShell({ adminName, currentView, mobileMenuOpen, setMobileMenuOpen,
     { id: "payments", icon: "💳", label: "Payments" },
     { id: "payouts", icon: "💰", label: "Payouts" },
     { id: "reports", icon: "📊", label: "Reports" },
+    { id: "passwords", icon: "🔐", label: "Passwords" },
     { id: "settings", icon: "⚙️", label: "Settings" },
   ];
 
@@ -169,7 +171,135 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
   );
 }
 
-// ==================== SETTINGS VIEW (UPGRADED) ====================
+// ==================== PASSWORDS VIEW (NEW) ====================
+
+function PasswordsView() {
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMember, setSelectedMember] = useState<any | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/members")
+      .then(r => r.json())
+      .then(d => setMembers(d.members || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading members…</div>;
+
+  const filtered = members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">Password Management</h2>
+        <p className="text-sm text-slate-500">Reset or change login credentials for any member.</p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+          <input 
+            type="text" 
+            placeholder="Search member by name or phone..." 
+            value={searchTerm} 
+            onChange={e => setSearchTerm(e.target.value)} 
+            className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 text-sm" 
+          />
+        </div>
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+            <tr>
+              <th className="px-4 py-3 font-medium">Member</th>
+              <th className="px-4 py-3 font-medium">Phone (Login ID)</th>
+              <th className="px-4 py-3 font-medium text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="text-slate-700">
+            {filtered.length === 0 ? (
+              <tr><td colSpan={3} className="px-4 py-12 text-center text-slate-400">No members found.</td></tr>
+            ) : (
+              filtered.map((m) => (
+                <tr key={m.id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span>
+                      <span className="font-semibold">{m.fullName}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 font-mono text-xs">{m.phone}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => setSelectedMember(m)} className="text-xs font-semibold px-4 py-2 rounded-xl text-white" style={{ backgroundColor: "#16a34a" }}>Change Password</button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedMember && (
+        <ResetPasswordModal 
+          member={selectedMember} 
+          onClose={() => setSelectedMember(null)} 
+          onSuccess={() => { setSelectedMember(null); alert("Password updated successfully!"); }} 
+        />
+      )}
+    </div>
+  );
+}
+
+function ResetPasswordModal({ member, onClose, onSuccess }: { member: any; onClose: () => void; onSuccess: () => void }) {
+  const [newPassword, setNewPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setError("");
+    if (newPassword.length < 4) { setError("Password must be at least 4 characters."); return; }
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/members/reset-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed to update password"); setSubmitting(false); return; }
+      onSuccess();
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">Reset Password</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="bg-slate-50 rounded-xl p-3 text-sm">
+            <div className="font-bold text-slate-800">{member.fullName}</div>
+            <div className="text-slate-500 font-mono text-xs mt-1">Login Phone: {member.phone}</div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">New Password / PIN *</label>
+            <input type="text" required value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password or 4-digit PIN" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-mono" />
+            <p className="text-xs text-slate-500 mt-1">Give this new password to the member so they can log in.</p>
+          </div>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save New Password"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==================== SETTINGS VIEW ====================
 
 function SettingsView() {
   const [loading, setLoading] = useState(true);
@@ -183,33 +313,17 @@ function SettingsView() {
   });
 
   useEffect(() => {
-    fetch("/api/admin/settings")
-      .then(r => r.json())
-      .then(d => {
+    fetch("/api/admin/settings").then(r => r.json()).then(d => {
         if (d.settings) {
-          setForm(f => ({ 
-            ...f, 
-            fullName: d.settings.fullName || "", 
-            email: d.settings.email || "", 
-            phone: d.settings.phone || "",
-            businessName: d.settings.businessName || "Amazing Grace Susu",
-            supportPhone: d.settings.supportPhone || "",
-            supportWhatsapp: d.settings.supportWhatsapp || ""
-          }));
+          setForm(f => ({ ...f, fullName: d.settings.fullName || "", email: d.settings.email || "", phone: d.settings.phone || "", businessName: d.settings.businessName || "Amazing Grace Susu", supportPhone: d.settings.supportPhone || "", supportWhatsapp: d.settings.supportWhatsapp || "" }));
         }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(""); setSuccess(""); setSubmitting(true);
+    e.preventDefault(); setError(""); setSuccess(""); setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/settings", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to save settings"); setSubmitting(false); return; }
       setSuccess("Settings saved successfully!");
@@ -222,104 +336,46 @@ function SettingsView() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">System Settings</h2>
-        <p className="text-sm text-slate-500">Manage your Admin account, Business details, and view active system rules.</p>
-      </div>
-
+      <div><h2 className="text-2xl font-bold text-slate-800">System Settings</h2><p className="text-sm text-slate-500">Manage your Admin account, Business details, and view active system rules.</p></div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* MAIN FORM COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-8">
-            
-            {/* BUSINESS PROFILE */}
             <div>
               <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Business Profile</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Business Name</label>
-                  <input type="text" value={form.businessName} onChange={e => setForm({ ...form, businessName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Support Phone</label>
-                  <input type="text" value={form.supportPhone} onChange={e => setForm({ ...form, supportPhone: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Support WhatsApp</label>
-                  <input type="text" value={form.supportWhatsapp} onChange={e => setForm({ ...form, supportWhatsapp: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
+                <div className="sm:col-span-2"><label className="block text-sm font-semibold text-slate-700 mb-1">Business Name</label><input type="text" value={form.businessName} onChange={e => setForm({ ...form, businessName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
+                <div><label className="block text-sm font-semibold text-slate-700 mb-1">Support Phone</label><input type="text" value={form.supportPhone} onChange={e => setForm({ ...form, supportPhone: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
+                <div><label className="block text-sm font-semibold text-slate-700 mb-1">Support WhatsApp</label><input type="text" value={form.supportWhatsapp} onChange={e => setForm({ ...form, supportWhatsapp: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
               </div>
             </div>
-
-            {/* ADMIN PROFILE */}
             <div>
               <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Admin Profile</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
-                  <input type="text" required value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number</label>
-                  <input type="text" required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label>
-                  <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                </div>
+                <div><label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label><input type="text" required value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
+                <div><label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number</label><input type="text" required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
+                <div className="sm:col-span-2"><label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label><input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /></div>
               </div>
             </div>
-
-            {/* SECURITY */}
             <div>
               <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Security</h3>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Change Password (Optional)</label>
-                <input type="password" value={form.newPassword} onChange={e => setForm({ ...form, newPassword: e.target.value })} placeholder="Leave blank to keep current password" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
-                <p className="text-xs text-slate-400 mt-1">If changing, must be at least 6 characters.</p>
-              </div>
+              <div><label className="block text-sm font-semibold text-slate-700 mb-1">Change Password (Optional)</label><input type="password" value={form.newPassword} onChange={e => setForm({ ...form, newPassword: e.target.value })} placeholder="Leave blank to keep current password" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" /><p className="text-xs text-slate-400 mt-1">If changing, must be at least 6 characters.</p></div>
             </div>
-
             {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
             {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3">{success}</div>}
-
-            <button type="submit" disabled={submitting} className="w-full text-white font-bold py-3 rounded-xl disabled:opacity-60 shadow-md" style={{ backgroundColor: "#16a34a" }}>
-              {submitting ? "Saving…" : "Save All Settings"}
-            </button>
+            <button type="submit" disabled={submitting} className="w-full text-white font-bold py-3 rounded-xl disabled:opacity-60 shadow-md" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save All Settings"}</button>
           </form>
         </div>
-
-        {/* SYSTEM RULES SIDEBAR */}
         <div className="space-y-6">
           <div className="bg-slate-800 text-white rounded-2xl p-6 shadow-md">
             <h3 className="text-lg font-bold mb-4">Active System Rules</h3>
             <p className="text-sm text-slate-300 mb-4">These are hardcoded into the platform and cannot be changed here.</p>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>20 Members per group</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>20-Week cycle</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>Monday contribution due date</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>No late payment penalties</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>Expected payout = 20 × contribution</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                <span>No GH₵50 deduction fee</span>
-              </li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>20 Members per group</span></li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>20-Week cycle</span></li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>Monday contribution due date</span></li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>No late payment penalties</span></li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>Expected payout = 20 × contribution</span></li>
+              <li className="flex items-start gap-2"><span className="text-green-400">✓</span><span>No GH₵50 deduction fee</span></li>
             </ul>
           </div>
         </div>
@@ -346,26 +402,10 @@ function ReportsView({ refreshKey }: { refreshKey: number }) {
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold text-slate-800">Financial Reports</h2><p className="text-sm text-slate-500">Live overview of your Susu business operations.</p></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <div className="text-sm text-slate-500 font-semibold mb-1">Total Collected</div>
-          <div className="text-3xl font-bold text-green-700">GH₵{data.totalCollected.toLocaleString()}</div>
-          <div className="text-xs text-slate-400 mt-2">All verified payments</div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <div className="text-sm text-slate-500 font-semibold mb-1">Total Paid Out</div>
-          <div className="text-3xl font-bold text-blue-700">GH₵{data.totalPaidOut.toLocaleString()}</div>
-          <div className="text-xs text-slate-400 mt-2">Completed payouts</div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <div className="text-sm text-slate-500 font-semibold mb-1">Pending Payouts</div>
-          <div className="text-3xl font-bold text-yellow-600">GH₵{data.pendingPayouts.toLocaleString()}</div>
-          <div className="text-xs text-slate-400 mt-2">Scheduled for future weeks</div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <div className="text-sm text-slate-500 font-semibold mb-1">Cash Balance</div>
-          <div className="text-3xl font-bold text-slate-800">GH₵{data.balance.toLocaleString()}</div>
-          <div className="text-xs text-slate-400 mt-2">Collected minus Paid Out</div>
-        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"><div className="text-sm text-slate-500 font-semibold mb-1">Total Collected</div><div className="text-3xl font-bold text-green-700">GH₵{data.totalCollected.toLocaleString()}</div><div className="text-xs text-slate-400 mt-2">All verified payments</div></div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"><div className="text-sm text-slate-500 font-semibold mb-1">Total Paid Out</div><div className="text-3xl font-bold text-blue-700">GH₵{data.totalPaidOut.toLocaleString()}</div><div className="text-xs text-slate-400 mt-2">Completed payouts</div></div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"><div className="text-sm text-slate-500 font-semibold mb-1">Pending Payouts</div><div className="text-3xl font-bold text-yellow-600">GH₵{data.pendingPayouts.toLocaleString()}</div><div className="text-xs text-slate-400 mt-2">Scheduled for future weeks</div></div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100"><div className="text-sm text-slate-500 font-semibold mb-1">Cash Balance</div><div className="text-3xl font-bold text-slate-800">GH₵{data.balance.toLocaleString()}</div><div className="text-xs text-slate-400 mt-2">Collected minus Paid Out</div></div>
       </div>
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
         <div className="p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800">Breakdown by Group</h3></div>
