@@ -189,7 +189,7 @@ function GroupsView() {
         {groups.map(g => {
           const isFull = g.availableSlots <= 0;
           const percentage = (g.currentMembers / g.maxMembers) * 100;
-          const payout = (20 * Number(g.contributionAmount)) - 50;
+          const payout = (20 * Number(g.contributionAmount)); // REMOVED - 50 HERE
 
           return (
             <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
@@ -221,31 +221,19 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [showRecordModal, setShowRecordModal] = useState(false);
   
-  // Drill-down state
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<{id: string, name: string} | null>(null);
   const [memberPayments, setMemberPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Edit Payment state
   const [editPayment, setEditPayment] = useState<any | null>(null);
 
-  // Fetch groups & members for the ledger list
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/payouts") // We use this endpoint because it returns all groups and their members
-      .then(r => r.json())
-      .then(data => {
-        const mapped = (data.groups || []).map((g: any) => ({
-          id: g.id,
-          contributionAmount: g.contributionAmount.toString(),
-          members: g.members
-        }));
+    fetch("/api/admin/payouts").then(r => r.json()).then(data => {
+        const mapped = (data.groups || []).map((g: any) => ({ id: g.id, contributionAmount: g.contributionAmount.toString(), members: g.members }));
         setGroups(mapped);
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+      }).catch(e => setError(e.message)).finally(() => setLoading(false));
   }, [refreshKey]);
 
   function reload() { setRefreshKey(k => k + 1); onChanged(); }
@@ -256,9 +244,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     try {
       const res = await fetch(`/api/admin/members/detail?id=${memberId}`);
       const data = await res.json();
-      if (res.ok) {
-        setMemberPayments(data.member.payments);
-      }
+      if (res.ok) setMemberPayments(data.member.payments);
     } catch { alert("Failed to load payments") }
     finally { setLoadingPayments(false); }
   }
@@ -266,22 +252,15 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   async function handleDeletePayment(id: string) {
     if (!confirm("Are you sure you want to permanently DELETE this payment? This action cannot be undone and will affect the member's total contributions.")) return;
     try {
-      const res = await fetch("/api/admin/payments/delete", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId: id }),
-      });
-      if (res.ok) {
-        fetchMemberPayments(selectedMember!.id, selectedMember!.name);
-      } else {
-        alert("Failed to delete payment.");
-      }
+      const res = await fetch("/api/admin/payments/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: id }) });
+      if (res.ok) fetchMemberPayments(selectedMember!.id, selectedMember!.name);
+      else alert("Failed to delete payment.");
     } catch { alert("Network error."); }
   }
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading ledger…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
-  // --- RENDER: MEMBER PAYMENT HISTORY ---
   if (selectedMember) {
     return (
       <div className="space-y-6">
@@ -345,12 +324,9 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     );
   }
 
-  // --- RENDER: MEMBER LIST FOR SELECTED GROUP ---
   const activeGroup = groups.find(g => g.id === selectedGroupId);
   if (activeGroup) {
-    const filteredMembers = activeGroup.members.filter(m => 
-      m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm)
-    );
+    const filteredMembers = activeGroup.members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
 
     return (
       <div className="space-y-6">
@@ -382,7 +358,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     );
   }
 
-  // --- RENDER: INITIAL GROUPS LIST ---
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -411,25 +386,15 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-// ==================== EDIT PAYMENT MODAL (NEW) ====================
-
 function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClose: () => void; onSuccess: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({
-    amount: String(payment.amount),
-    paymentMethod: payment.method,
-    weekNumber: String(payment.weekNumber || 1),
-    status: payment.status,
-  });
+  const [form, setForm] = useState({ amount: String(payment.amount), paymentMethod: payment.method, weekNumber: String(payment.weekNumber || 1), status: payment.status });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/payments/update", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId: payment.id, ...form }),
-      });
+      const res = await fetch("/api/admin/payments/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: payment.id, ...form }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to update"); setSubmitting(false); return; }
       onSuccess();
@@ -444,9 +409,7 @@ function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClo
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-slate-50 rounded-xl p-3 text-sm">
-             <span className="text-slate-500">Reference:</span> <span className="font-mono font-bold">{payment.reference}</span>
-          </div>
+          <div className="bg-slate-50 rounded-xl p-3 text-sm"><span className="text-slate-500">Reference:</span> <span className="font-mono font-bold">{payment.reference}</span></div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-slate-700">Week *</label>
@@ -488,23 +451,16 @@ function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClo
   );
 }
 
-// ==================== RECORD PAYMENT MODAL ====================
-
 function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [members, setMembers] = useState<{id: string, fullName: string, phone: string, groupAmount: string}[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  
   const [form, setForm] = useState({ memberId: "", amount: "", paymentMethod: "MTN_MOMO", weekNumber: "1", transactionId: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    fetch("/api/admin/members")
-      .then(r => r.json())
-      .then(d => setMembers((d.members || []).filter((m: any) => m.status === "ACTIVE")))
-      .catch(() => {})
-      .finally(() => setLoadingMembers(false));
+    fetch("/api/admin/members").then(r => r.json()).then(d => setMembers((d.members || []).filter((m: any) => m.status === "ACTIVE"))).catch(() => {}).finally(() => setLoadingMembers(false));
   }, []);
 
   const groupedMembers = members.reduce((acc, m) => {
@@ -519,10 +475,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/payments/record", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+      const res = await fetch("/api/admin/payments/record", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to record"); setSubmitting(false); return; }
       onSuccess();
@@ -726,7 +679,7 @@ function AddMemberModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
           {selectedGroup && (
             <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}>
               <div className="font-semibold mb-1" style={{ color: "#15803d" }}>Preview</div>
-              <div className="text-slate-700">Weekly contribution: <strong>GH₵{selectedGroup.contributionAmount}</strong><br />Expected payout: <strong>GH₵{(20 * Number(selectedGroup.contributionAmount) - 50).toLocaleString()}</strong><span className="text-xs text-slate-500"> (20 × GH₵{selectedGroup.contributionAmount} − GH₵50 fee)</span></div>
+              <div className="text-slate-700">Weekly contribution: <strong>GH₵{selectedGroup.contributionAmount}</strong><br />Expected payout: <strong>GH₵{(20 * Number(selectedGroup.contributionAmount)).toLocaleString()}</strong></div>
             </div>
           )}
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
