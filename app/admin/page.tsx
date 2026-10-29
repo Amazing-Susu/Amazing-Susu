@@ -94,7 +94,7 @@ function AdminShell({ adminName, currentView, mobileMenuOpen, setMobileMenuOpen,
     { id: "dashboard", icon: "🏠", label: "Dashboard" },
     { id: "members", icon: "👥", label: "Members" },
     { id: "groups", icon: "📁", label: "Groups" },
-    { id: "payments", icon: "💳", label: "Payments" }, // Renamed from Approvals
+    { id: "payments", icon: "💳", label: "Payments" },
     { id: "payouts", icon: "💰", label: "Payouts" },
     { id: "reports", icon: "📊", label: "Reports" },
     { id: "settings", icon: "⚙️", label: "Settings" },
@@ -155,11 +155,7 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/dashboard")
-      .then(r => r.json())
-      .then(d => { if (d.totalMembers !== undefined) setStats(d); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetch("/api/admin/dashboard").then(r => r.json()).then(d => { if (d.totalMembers !== undefined) setStats(d); }).catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
 
   const kpis = [
@@ -172,7 +168,6 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
   return (
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold text-slate-800">👋 Welcome, {adminName}</h2><p className="text-sm text-slate-500">Here's what's happening with your Susu today.</p></div>
-      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
           <div key={kpi.label} className="rounded-2xl p-5 text-white relative overflow-hidden shadow" style={{ background: kpi.color }}>
@@ -229,85 +224,174 @@ function GroupsView() {
   );
 }
 
-// ==================== PAYMENTS VIEW (Previously Approvals) ====================
+// ==================== PAYMENTS LEDGER VIEW ====================
 
-type PaymentRow = {
-  id: string; reference: string; amount: number; method: string; status: string; date: string;
-  memberName: string; memberPhone: string; groupAmount: number; weekNumber: number;
-};
+type LedgerGroup = { id: string; contributionAmount: string; members: Array<{ id: string; fullName: string; phone: string }> };
 
 function PaymentsView({ onChanged }: { onChanged: () => void }) {
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [groups, setGroups] = useState<LedgerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [showRecordModal, setShowRecordModal] = useState(false);
+  
+  // Drill-down state
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{id: string, name: string} | null>(null);
+  const [memberPayments, setMemberPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
+  // Fetch groups & members for the ledger list
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/payments/all")
-      .then(async (r) => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "Failed to load"); return data; })
-      .then((d) => setPayments(d.payments || []))
-      .catch((e) => setError(e.message))
+    fetch("/api/admin/payments/all") // Reusing an existing route or you can use /api/admin/groups with members
+      .then(r => r.json())
+      .then(async () => {
+        // Fetch all groups with members for the drill down
+        const res = await fetch("/api/admin/payouts"); // We know this endpoint returns groups with members!
+        const data = await res.json();
+        const mapped = (data.groups || []).map((g: any) => ({
+          id: g.id,
+          contributionAmount: g.contributionAmount.toString(),
+          members: g.members
+        }));
+        setGroups(mapped);
+      })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
-  function reload() { setRefreshKey((k) => k + 1); onChanged(); }
+  function reload() { setRefreshKey(k => k + 1); onChanged(); }
 
-  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading payments…</div>;
+  async function fetchMemberPayments(memberId: string, memberName: string) {
+    setSelectedMember({ id: memberId, name: memberName });
+    setLoadingPayments(true);
+    try {
+      const res = await fetch(`/api/admin/members/detail?id=${memberId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setMemberPayments(data.member.payments);
+      }
+    } catch { alert("Failed to load payments") }
+    finally { setLoadingPayments(false); }
+  }
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading ledger…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
+  // --- RENDER: MEMBER PAYMENT HISTORY ---
+  if (selectedMember) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <button onClick={() => setSelectedMember(null)} className="text-sm font-semibold text-green-700 hover:underline mb-2 block">← Back to Members</button>
+            <h2 className="text-2xl font-bold text-slate-800">{selectedMember.name} - Payment History</h2>
+          </div>
+          <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          {loadingPayments ? (
+            <div className="p-12 text-center text-slate-400">Loading payments…</div>
+          ) : (
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Date / Time</th>
+                  <th className="px-4 py-3 font-medium">Week</th>
+                  <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Method</th>
+                  <th className="px-4 py-3 font-medium">Ref</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="text-slate-700">
+                {memberPayments.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">No payments recorded for this member yet.</td></tr>
+                ) : (
+                  memberPayments.map((p) => (
+                    <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
+                      <td className="px-4 py-3 text-xs text-slate-500">{new Date(p.paymentDate).toLocaleString()}</td>
+                      <td className="px-4 py-3 font-medium">Wk {p.weekNumber || "-"}</td>
+                      <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount}</td>
+                      <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
+                      <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
+      </div>
+    );
+  }
+
+  // --- RENDER: MEMBER LIST FOR SELECTED GROUP ---
+  const activeGroup = groups.find(g => g.id === selectedGroupId);
+  if (activeGroup) {
+    const filteredMembers = activeGroup.members.filter(m => 
+      m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm)
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <button onClick={() => setSelectedGroupId(null)} className="text-sm font-semibold text-green-700 hover:underline mb-2 block">← Back to Groups</button>
+            <h2 className="text-2xl font-bold text-slate-800">GH₵{activeGroup.contributionAmount} Group Members</h2>
+          </div>
+          <div className="flex gap-2">
+            <input type="text" placeholder="Search name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2" />
+            <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMembers.map(m => (
+            <div key={m.id} onClick={() => fetchMemberPayments(m.id, m.fullName)} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</div>
+              <div>
+                <div className="font-bold text-slate-800 text-sm">{m.fullName}</div>
+                <div className="text-xs text-slate-500">{m.phone}</div>
+              </div>
+              <div className="ml-auto text-green-700 text-sm font-semibold">View →</div>
+            </div>
+          ))}
+        </div>
+        {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
+      </div>
+    );
+  }
+
+  // --- RENDER: INITIAL GROUPS LIST ---
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Payments Ledger</h2>
-          <p className="text-sm text-slate-500">Master record of all contributions.</p>
+          <p className="text-sm text-slate-500">Select a group to view its members.</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={reload} className="text-sm font-semibold px-4 py-2.5 rounded-xl border-2 border-slate-200 text-slate-700">↻ Refresh</button>
-          <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
-        </div>
+        <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-              <tr>
-                <th className="px-4 py-3 font-medium">Date / Time</th>
-                <th className="px-4 py-3 font-medium">Member</th>
-                <th className="px-4 py-3 font-medium">Week</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Method</th>
-                <th className="px-4 py-3 font-medium">Ref</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-700">
-              {payments.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">No payments recorded yet.</td></tr>
-              ) : (
-                payments.map((p) => (
-                  <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-xs text-slate-500">{new Date(p.date).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-800">{p.memberName}</div>
-                      <div className="text-xs text-slate-500">{p.memberPhone}</div>
-                    </td>
-                    <td className="px-4 py-3 font-medium">Wk {p.weekNumber}</td>
-                    <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {groups.map(g => (
+          <div key={g.id} onClick={() => setSelectedGroupId(g.id)} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex justify-between items-center">
+            <div>
+              <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Group Tier</div>
+              <div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div>
+              <div className="text-xs text-slate-400 mt-1">{g.members.length} Members</div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 text-xl font-bold">›</div>
+          </div>
+        ))}
       </div>
 
       {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
@@ -315,13 +399,16 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   );
 }
 
+// ==================== RECORD PAYMENT MODAL (NEW) ====================
+
 function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [members, setMembers] = useState<{id: string, fullName: string, phone: string}[]>([]);
+  const [members, setMembers] = useState<{id: string, fullName: string, phone: string, groupAmount: string}[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   
-  const [form, setForm] = useState({ memberId: "", amount: "", paymentMethod: "MTN_MOMO", transactionId: "" });
+  const [form, setForm] = useState({ memberId: "", amount: "", paymentMethod: "MTN_MOMO", weekNumber: "1", transactionId: "" });
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetch("/api/admin/members")
@@ -330,6 +417,19 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
       .catch(() => {})
       .finally(() => setLoadingMembers(false));
   }, []);
+
+  // Group members by their contribution amount
+  const groupedMembers = members.reduce((acc, m) => {
+    const amt = m.groupAmount;
+    if (!acc[amt]) acc[amt] = [];
+    acc[amt].push(m);
+    return acc;
+  }, {} as Record<string, typeof members>);
+
+  // Filter members based on search
+  const filteredMembers = members.filter(m => 
+    m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm)
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setSubmitting(true);
@@ -346,25 +446,63 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
           <h2 className="text-lg font-bold text-slate-800">Record Payment</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">Search Member</label>
+            <input 
+              type="text" 
+              placeholder="Search by name or phone..." 
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)} 
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 bg-slate-50" 
+            />
+          </div>
+
           <div>
             <label className="text-sm font-semibold text-slate-700">Select Member *</label>
             {loadingMembers ? <div className="text-sm text-slate-400 py-2">Loading members…</div> : (
               <select required value={form.memberId} onChange={e => setForm({...form, memberId: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
                 <option value="">— Choose Member —</option>
-                {members.map(m => <option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>)}
+                {searchTerm ? (
+                  // If searching, show a flat list of matching members
+                  filteredMembers.map(m => (
+                    <option key={m.id} value={m.id}>{m.fullName} ({m.phone}) - GH₵{m.groupAmount}</option>
+                  ))
+                ) : (
+                  // Otherwise, group by tier
+                  Object.entries(groupedMembers).map(([amount, mems]) => (
+                    <optgroup key={amount} label={`GH₵${amount} Group`}>
+                      {mems.map(m => (
+                        <option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>
+                      ))}
+                    </optgroup>
+                  ))
+                )}
               </select>
             )}
           </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
-            <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold text-lg" />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-700">Week *</label>
+              <select required value={form.weekNumber} onChange={e => setForm({...form, weekNumber: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                {Array.from({ length: 20 }, (_, i) => (
+                  <option key={i+1} value={i+1}>Week {i+1}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
+              <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold" />
+            </div>
           </div>
+
           <div>
             <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
             <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
@@ -375,12 +513,15 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <option value="CASH">Cash</option>
             </select>
           </div>
+          
           <div>
             <label className="text-sm font-semibold text-slate-700">Transaction Ref (optional)</label>
             <input type="text" value={form.transactionId} onChange={e => setForm({...form, transactionId: e.target.value})} placeholder="e.g. MoMo ID" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" />
           </div>
+
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <div className="flex gap-3 pt-2">
+          
+          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
             <button type="submit" disabled={submitting || loadingMembers} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Payment"}</button>
           </div>
@@ -389,6 +530,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     </div>
   );
 }
+
 
 // ==================== MEMBERS VIEW ====================
 
@@ -400,6 +542,7 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
   const [error, setError] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -409,12 +552,17 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading members…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
+  const filtered = members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
+
   return (
     <>
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div><h2 className="text-2xl font-bold text-slate-800">Members</h2><p className="text-sm text-slate-500">{members.length} member{members.length === 1 ? "" : "s"} in your Susu system</p></div>
-          <button onClick={() => setShowAdd(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Add Member</button>
+          <div className="flex gap-2 w-full sm:w-auto">
+             <input type="text" placeholder="Search by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="flex-1 sm:w-64 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2" />
+             <button onClick={() => setShowAdd(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl whitespace-nowrap" style={{ backgroundColor: "#16a34a" }}>+ Add Member</button>
+          </div>
         </div>
         {members.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
@@ -429,7 +577,7 @@ function MembersView({ onViewMember }: { onViewMember: (id: string) => void }) {
                   <tr><th className="px-4 py-3 font-medium">Name</th><th className="px-4 py-3 font-medium">Phone</th><th className="px-4 py-3 font-medium">Group</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Joined</th><th className="px-4 py-3 font-medium text-right">Action</th></tr>
                 </thead>
                 <tbody className="text-slate-700">
-                  {members.map((m) => (
+                  {filtered.map((m) => (
                     <tr key={m.id} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3"><div className="flex items-center gap-3"><span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span><span className="font-semibold">{m.fullName}</span></div></td>
                       <td className="px-4 py-3 text-slate-600">{m.phone}</td>
