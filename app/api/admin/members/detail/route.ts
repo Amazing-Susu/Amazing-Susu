@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     const contributionAmount = Number(member.group.contributionAmount);
-    const expectedPayout = 20 * contributionAmount - 50;
+    const expectedPayout = 20 * contributionAmount;
 
     return NextResponse.json({
       member: {
