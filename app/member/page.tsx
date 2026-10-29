@@ -17,7 +17,6 @@ export default function MemberPage() {
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Initial load for dashboard data
   useEffect(() => {
     fetch("/api/member/me").then((r) => (r.ok ? r.json() : null)).then((d) => {
         if (d?.member) {
@@ -26,7 +25,6 @@ export default function MemberPage() {
       }).finally(() => setChecking(false));
   }, [refreshKey]);
 
-  // Notification poller (checks every 30 seconds)
   useEffect(() => {
     function fetchNotifications() {
       fetch("/api/member/notifications")
@@ -34,11 +32,9 @@ export default function MemberPage() {
         .then((d) => setNotifications(d.notifications || []))
         .catch(() => {});
     }
-
-    fetchNotifications(); // Fetch immediately on load
-    const interval = setInterval(fetchNotifications, 30000); // Then every 30 seconds
-
-    return () => clearInterval(interval); // Cleanup on unmount
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading…</div></div>;
@@ -117,11 +113,8 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      {/* BOLD BRANDED HEADER */}
       <header className="text-white px-5 pt-8 pb-24 rounded-b-[2.5rem]" style={{ backgroundColor: "#16a34a" }}>
         <div className="max-w-md mx-auto space-y-6">
-          
-          {/* Logo & Brand Name */}
           <div className="flex items-center gap-3">
             <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-sm shadow-inner">
               <span className="text-3xl">🌳</span>
@@ -136,7 +129,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
             </div>
           </div>
 
-          {/* User Info & Actions */}
           <div className="flex items-center justify-between border-t border-green-500/50 pt-5">
             <div>
               <div className="text-xs text-green-100 mb-1">Welcome back 👋</div>
@@ -150,7 +142,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
               <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2.5 rounded-xl text-xs font-bold">Sign Out</button>
             </div>
           </div>
-
         </div>
       </header>
 
