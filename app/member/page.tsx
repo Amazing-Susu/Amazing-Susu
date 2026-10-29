@@ -38,7 +38,8 @@ export default function MemberPage() {
           });
 
           if (hasOverdue) {
-            setTimeout(() => playAlarm(), 1000); 
+            // Wait 1.5 seconds for page to fully load and React to attach event listeners
+            setTimeout(() => playAlarm(), 1500); 
           }
         }
       }).finally(() => setChecking(false));
@@ -54,6 +55,7 @@ export default function MemberPage() {
           setNotifications(notifs);
           
           const unread = notifs.filter((n: any) => !n.readAt).length;
+          // If new notification arrives (and it's not the first load)
           if (unread > prevUnreadCount.current && prevUnreadCount.current !== 0) {
             playAlarm();
           }
@@ -69,7 +71,10 @@ export default function MemberPage() {
 
   function playAlarm() {
     if (audioRef.current) {
-      audioRef.current.play().catch(e => console.log("Audio blocked by browser:", e));
+      audioRef.current.volume = 0.5; // 50% volume
+      audioRef.current.play().catch(e => {
+        console.log("Browser blocked audio. User needs to interact first.", e);
+      });
     }
   }
 
@@ -84,7 +89,12 @@ export default function MemberPage() {
 
   return (
     <>
-      <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto" />
+      {/* Hidden Audio Player for Alarm (Using a standard web audio file) */}
+      <audio 
+        ref={audioRef} 
+        src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" 
+        preload="auto" 
+      />
 
       <MemberDashboard
         member={member} weekly={weekly} payments={payments} payoutStatus={payoutStatus} notifications={notifications}
@@ -108,6 +118,12 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
       const res = await fetch("/api/member/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, password }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
+      
+      // Force a play on the user's click just before logging in, to "unlock" the audio engine in the browser
+      const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+      audio.volume = 0;
+      audio.play().catch(() => {});
+
       onSuccess();
     } catch { setError("Network error."); setLoading(false); }
   }
