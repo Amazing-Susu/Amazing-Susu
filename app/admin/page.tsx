@@ -42,7 +42,7 @@ export default function AdminPage() {
       {currentView === "payments" && <PaymentsView onChanged={() => setRefreshKey((k) => k + 1)} />}
       {currentView === "payouts" && <PayoutsView />}
       {currentView === "reports" && <ReportsView refreshKey={refreshKey} />}
-      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "payments" && currentView !== "payouts" && currentView !== "reports" && <ComingSoon view={currentView} />}
+      {currentView === "settings" && <SettingsView />}
     </AdminShell>
   );
 }
@@ -169,7 +169,166 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
   );
 }
 
-// ==================== REPORTS VIEW (NEW) ====================
+// ==================== SETTINGS VIEW (UPGRADED) ====================
+
+function SettingsView() {
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  
+  const [form, setForm] = useState({
+    fullName: "", email: "", phone: "", newPassword: "",
+    businessName: "Amazing Grace Susu", supportPhone: "", supportWhatsapp: ""
+  });
+
+  useEffect(() => {
+    fetch("/api/admin/settings")
+      .then(r => r.json())
+      .then(d => {
+        if (d.settings) {
+          setForm(f => ({ 
+            ...f, 
+            fullName: d.settings.fullName || "", 
+            email: d.settings.email || "", 
+            phone: d.settings.phone || "",
+            businessName: d.settings.businessName || "Amazing Grace Susu",
+            supportPhone: d.settings.supportPhone || "",
+            supportWhatsapp: d.settings.supportWhatsapp || ""
+          }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(""); setSuccess(""); setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed to save settings"); setSubmitting(false); return; }
+      setSuccess("Settings saved successfully!");
+      setForm(f => ({ ...f, newPassword: "" })); 
+    } catch { setError("Network error. Please try again."); }
+    finally { setSubmitting(false); }
+  }
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading settings…</div>;
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-800">System Settings</h2>
+        <p className="text-sm text-slate-500">Manage your Admin account, Business details, and view active system rules.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* MAIN FORM COLUMN */}
+        <div className="lg:col-span-2 space-y-6">
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-8">
+            
+            {/* BUSINESS PROFILE */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Business Profile</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Business Name</label>
+                  <input type="text" value={form.businessName} onChange={e => setForm({ ...form, businessName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Support Phone</label>
+                  <input type="text" value={form.supportPhone} onChange={e => setForm({ ...form, supportPhone: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Support WhatsApp</label>
+                  <input type="text" value={form.supportWhatsapp} onChange={e => setForm({ ...form, supportWhatsapp: e.target.value })} placeholder="e.g. 0551234567" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+              </div>
+            </div>
+
+            {/* ADMIN PROFILE */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Admin Profile</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Full Name</label>
+                  <input type="text" required value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <input type="text" required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label>
+                  <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                </div>
+              </div>
+            </div>
+
+            {/* SECURITY */}
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 border-b pb-2 mb-4">Security</h3>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Change Password (Optional)</label>
+                <input type="password" value={form.newPassword} onChange={e => setForm({ ...form, newPassword: e.target.value })} placeholder="Leave blank to keep current password" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2" />
+                <p className="text-xs text-slate-400 mt-1">If changing, must be at least 6 characters.</p>
+              </div>
+            </div>
+
+            {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+            {success && <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3">{success}</div>}
+
+            <button type="submit" disabled={submitting} className="w-full text-white font-bold py-3 rounded-xl disabled:opacity-60 shadow-md" style={{ backgroundColor: "#16a34a" }}>
+              {submitting ? "Saving…" : "Save All Settings"}
+            </button>
+          </form>
+        </div>
+
+        {/* SYSTEM RULES SIDEBAR */}
+        <div className="space-y-6">
+          <div className="bg-slate-800 text-white rounded-2xl p-6 shadow-md">
+            <h3 className="text-lg font-bold mb-4">Active System Rules</h3>
+            <p className="text-sm text-slate-300 mb-4">These are hardcoded into the platform and cannot be changed here.</p>
+            <ul className="space-y-3 text-sm">
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>20 Members per group</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>20-Week cycle</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>Monday contribution due date</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>No late payment penalties</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>Expected payout = 20 × contribution</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-400">✓</span>
+                <span>No GH₵50 deduction fee</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== REPORTS VIEW ====================
 
 function ReportsView({ refreshKey }: { refreshKey: number }) {
   const [data, setData] = useState<any>(null);
@@ -177,11 +336,7 @@ function ReportsView({ refreshKey }: { refreshKey: number }) {
 
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/reports")
-      .then(r => r.json())
-      .then(d => { if (d.totalCollected !== undefined) setData(d); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetch("/api/admin/reports").then(r => r.json()).then(d => { if (d.totalCollected !== undefined) setData(d); }).catch(() => {}).finally(() => setLoading(false));
   }, [refreshKey]);
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Generating reports…</div>;
@@ -190,7 +345,6 @@ function ReportsView({ refreshKey }: { refreshKey: number }) {
   return (
     <div className="space-y-6">
       <div><h2 className="text-2xl font-bold text-slate-800">Financial Reports</h2><p className="text-sm text-slate-500">Live overview of your Susu business operations.</p></div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
           <div className="text-sm text-slate-500 font-semibold mb-1">Total Collected</div>
@@ -213,20 +367,12 @@ function ReportsView({ refreshKey }: { refreshKey: number }) {
           <div className="text-xs text-slate-400 mt-2">Collected minus Paid Out</div>
         </div>
       </div>
-
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
-        <div className="p-5 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800">Breakdown by Group</h3>
-        </div>
+        <div className="p-5 border-b border-slate-100"><h3 className="font-bold text-slate-800">Breakdown by Group</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-              <tr>
-                <th className="px-6 py-3 font-medium">Group Tier</th>
-                <th className="px-6 py-3 font-medium text-right">Total Collected</th>
-                <th className="px-6 py-3 font-medium text-right">Total Paid Out</th>
-                <th className="px-6 py-3 font-medium text-right">Balance</th>
-              </tr>
+              <tr><th className="px-6 py-3 font-medium">Group Tier</th><th className="px-6 py-3 font-medium text-right">Total Collected</th><th className="px-6 py-3 font-medium text-right">Total Paid Out</th><th className="px-6 py-3 font-medium text-right">Balance</th></tr>
             </thead>
             <tbody className="text-slate-700">
               {data.groupData.map((g: any) => (
@@ -267,7 +413,6 @@ function GroupsView() {
           const isFull = g.availableSlots <= 0;
           const percentage = (g.currentMembers / g.maxMembers) * 100;
           const payout = (20 * Number(g.contributionAmount));
-
           return (
             <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
               <div className="flex justify-between items-start mb-4">
@@ -348,7 +493,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
           </div>
           <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
         </div>
-
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           {loadingPayments ? (
             <div className="p-12 text-center text-slate-400">Loading payments…</div>
@@ -356,15 +500,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Date / Time</th>
-                    <th className="px-4 py-3 font-medium">Week</th>
-                    <th className="px-4 py-3 font-medium">Amount</th>
-                    <th className="px-4 py-3 font-medium">Method</th>
-                    <th className="px-4 py-3 font-medium">Ref</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium text-right">Action</th>
-                  </tr>
+                  <tr><th className="px-4 py-3 font-medium">Date / Time</th><th className="px-4 py-3 font-medium">Week</th><th className="px-4 py-3 font-medium">Amount</th><th className="px-4 py-3 font-medium">Method</th><th className="px-4 py-3 font-medium">Ref</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium text-right">Action</th></tr>
                 </thead>
                 <tbody className="text-slate-700">
                   {memberPayments.length === 0 ? (
@@ -377,9 +513,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
                         <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount}</td>
                         <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
                         <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
-                        </td>
+                        <td className="px-4 py-3"><span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span></td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
                              <button onClick={() => setEditPayment(p)} className="text-xs font-semibold text-blue-600 hover:underline">Edit</button>
@@ -394,7 +528,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             </div>
           )}
         </div>
-
         {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
         {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
       </div>
@@ -404,7 +537,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   const activeGroup = groups.find(g => g.id === selectedGroupId);
   if (activeGroup) {
     const filteredMembers = activeGroup.members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
-
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -417,7 +549,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMembers.map(m => (
             <div key={m.id} onClick={() => fetchMemberPayments(m.id, m.fullName)} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex items-center gap-3">
@@ -444,7 +575,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
         </div>
         <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groups.map(g => (
           <div key={g.id} onClick={() => setSelectedGroupId(g.id)} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex justify-between items-center">
@@ -457,7 +587,6 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
           </div>
         ))}
       </div>
-
       {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
     </div>
   );
@@ -566,13 +695,11 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
           <h2 className="text-lg font-bold text-slate-800">Record Payment</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
-        
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-1 block">Search Member</label>
             <input type="text" placeholder="Search by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 bg-slate-50" />
           </div>
-
           <div>
             <label className="text-sm font-semibold text-slate-700">Select Member *</label>
             {loadingMembers ? <div className="text-sm text-slate-400 py-2">Loading members…</div> : (
@@ -590,7 +717,6 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               </select>
             )}
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-semibold text-slate-700">Week *</label>
@@ -603,7 +729,6 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold" />
             </div>
           </div>
-
           <div>
             <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
             <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
@@ -614,14 +739,11 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <option value="CASH">Cash</option>
             </select>
           </div>
-          
           <div>
             <label className="text-sm font-semibold text-slate-700">Transaction Ref (optional)</label>
             <input type="text" value={form.transactionId} onChange={e => setForm({...form, transactionId: e.target.value})} placeholder="e.g. MoMo ID" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" />
           </div>
-
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          
           <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
             <button type="submit" disabled={submitting || loadingMembers} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Payment"}</button>
@@ -1235,8 +1357,4 @@ function MarkPaidModal({ week, onClose, onSuccess }: { week: PayoutWeek; onClose
       </div>
     </div>
   );
-}
-
-function ComingSoon({ view }: { view: string }) {
-  return (<div className="bg-white rounded-2xl p-12 text-center shadow-sm"><div className="text-5xl mb-3">🚧</div><h3 className="font-bold text-slate-800 mb-1 capitalize">{view}</h3><p className="text-sm text-slate-500">This section is coming in the next stage.</p></div>);
 }
