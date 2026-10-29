@@ -1,14 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
+import InstallBanner from "./InstallBanner";
 
 type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; };
 type WeeklyRow = { weekNumber: number; weekId: string; dueDate: string; expected: number; verified: number; pending: number; status: "NOT_PAID" | "PARTIAL" | "FULL"; };
 type PaymentRow = { id: string; reference: string; amount: number; method: string; status: string; paymentDate: string; rejectionReason: string | null; };
 type PayoutStatus = { state: "PENDING" | "SCHEDULED" | "RECEIVED"; amount: number; paidAt?: string | null; };
 type NotificationRow = { id: string; title: string; message: string; readAt: string | null; createdAt: string; };
-
-// Global variable to hold the install prompt event
-let deferredPrompt: any;
 
 export default function MemberPage() {
   const [member, setMember] = useState<MemberInfo | null>(null);
@@ -18,42 +16,8 @@ export default function MemberPage() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  
-  // PWA Install State
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
 
-  useEffect(() => {
-    // Listen for the browser's native install prompt
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      setShowInstallBanner(true);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
-    // If the app is already installed, hide the banner
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setShowInstallBanner(false);
-    }
-
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-  }, []);
-
-  async function handleInstallClick() {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setShowInstallBanner(false);
-      }
-      deferredPrompt = null;
-    } else {
-      // If they are on iPhone (iOS doesn't support the prompt, so we tell them how)
-      alert("To install on iPhone:\n1. Tap the Share button (square with an arrow)\n2. Scroll down and tap 'Add to Home Screen'");
-    }
-  }
-
+  // Initial load for dashboard data
   useEffect(() => {
     fetch("/api/member/me").then((r) => (r.ok ? r.json() : null)).then((d) => {
         if (d?.member) {
@@ -62,25 +26,29 @@ export default function MemberPage() {
       }).finally(() => setChecking(false));
   }, [refreshKey]);
 
+  // Notification poller (checks every 30 seconds)
   useEffect(() => {
     function fetchNotifications() {
-      fetch("/api/member/notifications").then((r) => (r.ok ? r.json() : { notifications: [] })).then((d) => setNotifications(d.notifications || [])).catch(() => {});
+      fetch("/api/member/notifications")
+        .then((r) => (r.ok ? r.json() : { notifications: [] }))
+        .then((d) => setNotifications(d.notifications || []))
+        .catch(() => {});
     }
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+
+    fetchNotifications(); // Fetch immediately on load
+    const interval = setInterval(fetchNotifications, 30000); // Then every 30 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
   }, []);
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading…</div></div>;
   
-  if (!member) {
-    return (
-      <>
-        <MemberLogin onSuccess={() => setRefreshKey((k) => k + 1)} />
-        {showInstallBanner && <InstallBanner onInstall={handleInstallClick} onClose={() => setShowInstallBanner(false)} />}
-      </>
-    );
-  }
+  if (!member) return (
+    <>
+      <MemberLogin onSuccess={() => setRefreshKey((k) => k + 1)} />
+      <InstallBanner />
+    </>
+  );
 
   return (
     <>
@@ -89,27 +57,8 @@ export default function MemberPage() {
         onRefresh={() => setRefreshKey((k) => k + 1)}
         onLogout={async () => { await fetch("/api/member/logout", { method: "POST" }); setMember(null); }}
       />
-      {showInstallBanner && <InstallBanner onInstall={handleInstallClick} onClose={() => setShowInstallBanner(false)} />}
+      <InstallBanner />
     </>
-  );
-}
-
-// ==================== INSTALL BANNER COMPONENT ====================
-function InstallBanner({ onInstall, onClose }: { onInstall: () => void; onClose: () => void }) {
-  return (
-    <div className="fixed bottom-4 left-4 right-4 z-[100] bg-white border border-slate-200 rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-in slide-in-from-bottom-5">
-      <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-2xl">🌳</div>
-        <div>
-          <div className="font-bold text-slate-800 text-sm">Install Amazing Susu</div>
-          <div className="text-xs text-slate-500">Add to home screen for quick access</div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-sm font-semibold px-2">✕</button>
-        <button onClick={onInstall} className="bg-green-600 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-md">Install</button>
-      </div>
-    </div>
   );
 }
 
@@ -160,20 +109,34 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
   async function openNotifications() {
     setShowNotifications(true);
-    if (unreadCount > 0) { await fetch("/api/member/notifications", { method: "POST" }); onRefresh(); }
+    if (unreadCount > 0) { 
+      await fetch("/api/member/notifications", { method: "POST" }); 
+      onRefresh(); 
+    }
   }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
+      {/* BOLD BRANDED HEADER */}
       <header className="text-white px-5 pt-8 pb-24 rounded-b-[2.5rem]" style={{ backgroundColor: "#16a34a" }}>
         <div className="max-w-md mx-auto space-y-6">
+          
+          {/* Logo & Brand Name */}
           <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-sm shadow-inner"><span className="text-3xl">🌳</span></div>
+            <div className="bg-white/20 p-2 rounded-2xl backdrop-blur-sm shadow-inner">
+              <span className="text-3xl">🌳</span>
+            </div>
             <div>
-              <div className="text-2xl font-extrabold tracking-tight leading-tight">Amazing Grace Susu</div>
-              <div className="text-[10px] font-medium tracking-widest text-green-100 uppercase">Save Together • Grow Together</div>
+              <div className="text-2xl font-extrabold tracking-tight leading-tight">
+                Amazing Grace Susu
+              </div>
+              <div className="text-[10px] font-medium tracking-widest text-green-100 uppercase">
+                Save Together • Grow Together
+              </div>
             </div>
           </div>
+
+          {/* User Info & Actions */}
           <div className="flex items-center justify-between border-t border-green-500/50 pt-5">
             <div>
               <div className="text-xs text-green-100 mb-1">Welcome back 👋</div>
@@ -187,6 +150,7 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
               <button onClick={onLogout} className="bg-white/20 hover:bg-white/30 transition px-3 py-2.5 rounded-xl text-xs font-bold">Sign Out</button>
             </div>
           </div>
+
         </div>
       </header>
 
@@ -301,7 +265,7 @@ function PaymentStatusBadge({ status }: { status: string }) {
 
 function NotificationModal({ notifications, onClose }: { notifications: NotificationRow[]; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100]">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
         <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50">
           <h2 className="text-lg font-bold text-slate-800">Notifications</h2>
