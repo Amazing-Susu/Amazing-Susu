@@ -28,10 +28,10 @@ export default function MemberPage() {
         if (d?.member) {
           setMember(d.member); setWeekly(d.weeklyStatus || []); setPayments(d.payments || []); setPayoutStatus(d.payoutStatus || null);
           
-          // Play a subtle alarm on load if current week is unpaid
-          const current = (d.weeklyStatus || []).find((w: any) => w.weekNumber === d.member.currentWeekNumber);
-          if (current && current.status !== "FULL") {
-            setTimeout(() => playAlarm(), 1000); // Wait 1 second for page to settle
+          // Play a subtle alarm on load if there is an unpaid/partial week
+          const hasArrears = (d.weeklyStatus || []).some((w: any) => w.status !== "FULL");
+          if (hasArrears) {
+            setTimeout(() => playAlarm(), 1000); 
           }
         }
       }).finally(() => setChecking(false));
@@ -47,7 +47,6 @@ export default function MemberPage() {
           setNotifications(notifs);
           
           const unread = notifs.filter((n: any) => !n.readAt).length;
-          // Play sound if unread count increased (new notification arrived)
           if (unread > prevUnreadCount.current && prevUnreadCount.current !== 0) {
             playAlarm();
           }
@@ -57,7 +56,7 @@ export default function MemberPage() {
     }
 
     fetchNotifications(); 
-    const interval = setInterval(fetchNotifications, 10000); // 10 seconds
+    const interval = setInterval(fetchNotifications, 10000); 
     return () => clearInterval(interval); 
   }, []);
 
@@ -131,7 +130,10 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
   onRefresh: () => void; onLogout: () => void;
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const currentWeek = weekly.find((w) => w.weekNumber === member.currentWeekNumber);
+  
+  // THIS IS THE NEW LOGIC: Find the FIRST week that is NOT fully paid
+  const nextDueWeek = weekly.find((w) => w.status !== "FULL");
+  
   const totalPaid = weekly.reduce((s, w) => s + w.verified, 0);
   const weeksPaidCount = weekly.filter((w) => w.status === "FULL").length;
   const unreadCount = notifications.filter(n => !n.readAt).length;
@@ -188,14 +190,14 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
           </div>
         </div>
 
-        {/* PAYMENT DUE ALARM BANNER */}
-        {currentWeek && currentWeek.status !== "FULL" && (
+        {/* PAYMENT DUE ALARM BANNER (Uses nextDueWeek now) */}
+        {nextDueWeek && (
           <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse">
             <div className="flex items-center gap-3">
               <span className="text-3xl">🔔</span>
               <div>
-                <div className="text-sm font-bold text-red-700">Payment Due for Week {currentWeek.weekNumber}</div>
-                <div className="text-xs text-red-600 font-medium">Please send GH₵{currentWeek.expected} to the Admin.</div>
+                <div className="text-sm font-bold text-red-700">Payment Due for Week {nextDueWeek.weekNumber}</div>
+                <div className="text-xs text-red-600 font-medium">Please send GH₵{nextDueWeek.expected} to the Admin.</div>
               </div>
             </div>
           </div>
