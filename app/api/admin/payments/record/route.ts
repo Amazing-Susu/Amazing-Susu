@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const { memberId, amount, paymentMethod, transactionId } = await request.json();
-    if (!memberId || !amount || !paymentMethod) {
+    const { memberId, amount, paymentMethod, weekNumber, transactionId } = await request.json();
+    if (!memberId || !amount || !paymentMethod || !weekNumber) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       include: {
         group: {
           include: {
-            cycles: { where: { status: "ACTIVE" }, orderBy: { cycleNumber: "desc" }, take: 1, include: { weeks: { orderBy: { weekNumber: "asc" } } } },
+            cycles: { where: { status: "ACTIVE" }, orderBy: { cycleNumber: "desc" }, take: 1, include: { weeks: true } },
           },
         },
       },
@@ -35,13 +35,10 @@ export async function POST(request: NextRequest) {
     const cycle = member.group.cycles[0];
     if (!cycle) return NextResponse.json({ error: "No active cycle." }, { status: 400 });
 
-    const now = new Date();
-    const start = new Date(cycle.startDate).getTime();
-    const weeksSince = Math.floor((now.getTime() - start) / (7 * 24 * 60 * 60 * 1000));
-    const currentWeekNumber = Math.min(Math.max(weeksSince + 1, 1), 20);
-    const week = cycle.weeks.find((w) => w.weekNumber === currentWeekNumber);
+    // Find the specific week chosen by the admin
+    const week = cycle.weeks.find((w) => w.weekNumber === Number(weekNumber));
     
-    if (!week) return NextResponse.json({ error: "Week not found." }, { status: 400 });
+    if (!week) return NextResponse.json({ error: "Week not found in this cycle." }, { status: 400 });
 
     let reference = generateReference();
     for (let i = 0; i < 3; i++) {
