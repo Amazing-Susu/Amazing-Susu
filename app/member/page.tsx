@@ -28,9 +28,16 @@ export default function MemberPage() {
         if (d?.member) {
           setMember(d.member); setWeekly(d.weeklyStatus || []); setPayments(d.payments || []); setPayoutStatus(d.payoutStatus || null);
           
-          // Play a subtle alarm on load if there is an unpaid/partial week
-          const hasArrears = (d.weeklyStatus || []).some((w: any) => w.status !== "FULL");
-          if (hasArrears) {
+          // Check if there is an overdue week (1 week past due) to play the alarm
+          const now = new Date();
+          const hasOverdue = (d.weeklyStatus || []).some((w: any) => {
+            if (w.status === "FULL") return false;
+            const due = new Date(w.dueDate);
+            const gracePeriod = new Date(due.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 days
+            return now > gracePeriod; // It is overdue if today is past the 7-day grace period
+          });
+
+          if (hasOverdue) {
             setTimeout(() => playAlarm(), 1000); 
           }
         }
@@ -77,7 +84,6 @@ export default function MemberPage() {
 
   return (
     <>
-      {/* Hidden Audio Player for Alarm */}
       <audio ref={audioRef} src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto" />
 
       <MemberDashboard
@@ -131,8 +137,19 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   
-  // THIS IS THE NEW LOGIC: Find the FIRST week that is NOT fully paid
+  // Find the FIRST week that is NOT fully paid
   const nextDueWeek = weekly.find((w) => w.status !== "FULL");
+
+  // Determine if this unpaid week is officially "Overdue" (past the 7-day grace period)
+  let isOverdue = false;
+  if (nextDueWeek) {
+    const now = new Date();
+    const due = new Date(nextDueWeek.dueDate);
+    const gracePeriodEnds = new Date(due.getTime() + (7 * 24 * 60 * 60 * 1000));
+    if (now > gracePeriodEnds) {
+      isOverdue = true;
+    }
+  }
   
   const totalPaid = weekly.reduce((s, w) => s + w.verified, 0);
   const weeksPaidCount = weekly.filter((w) => w.status === "FULL").length;
@@ -190,14 +207,14 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
           </div>
         </div>
 
-        {/* PAYMENT DUE ALARM BANNER (Uses nextDueWeek now) */}
-        {nextDueWeek && (
+        {/* ONLY SHOW THE RED ALARM IF IT IS OVERDUE BY 1 WEEK */}
+        {nextDueWeek && isOverdue && (
           <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse">
             <div className="flex items-center gap-3">
-              <span className="text-3xl">🔔</span>
+              <span className="text-3xl">🚨</span>
               <div>
-                <div className="text-sm font-bold text-red-700">Payment Due for Week {nextDueWeek.weekNumber}</div>
-                <div className="text-xs text-red-600 font-medium">Please send GH₵{nextDueWeek.expected} to the Admin.</div>
+                <div className="text-sm font-bold text-red-700">Payment Overdue for Week {nextDueWeek.weekNumber}</div>
+                <div className="text-xs text-red-600 font-medium">Please send GH₵{nextDueWeek.expected} to the Admin immediately.</div>
               </div>
             </div>
           </div>
