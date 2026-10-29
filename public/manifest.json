@@ -1,0 +1,17 @@
+{
+  "name": "Amazing Grace Susu",
+  "short_name": "Amazing Susu",
+  "description": "Save Together • Grow Together",
+  "start_url": "/member",
+  "display": "standalone",
+  "background_color": "#16a34a",
+  "theme_color": "#16a34a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2875/2875394.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
