@@ -16,14 +16,29 @@ export default function MemberPage() {
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Initial load for dashboard data
   useEffect(() => {
     fetch("/api/member/me").then((r) => (r.ok ? r.json() : null)).then((d) => {
         if (d?.member) {
           setMember(d.member); setWeekly(d.weeklyStatus || []); setPayments(d.payments || []); setPayoutStatus(d.payoutStatus || null);
         }
       }).finally(() => setChecking(false));
-    fetch("/api/member/notifications").then((r) => (r.ok ? r.json() : { notifications: [] })).then((d) => setNotifications(d.notifications || [])).catch(() => {});
   }, [refreshKey]);
+
+  // Notification poller (checks every 30 seconds)
+  useEffect(() => {
+    function fetchNotifications() {
+      fetch("/api/member/notifications")
+        .then((r) => (r.ok ? r.json() : { notifications: [] }))
+        .then((d) => setNotifications(d.notifications || []))
+        .catch(() => {});
+    }
+
+    fetchNotifications(); // Fetch immediately on load
+    const interval = setInterval(fetchNotifications, 30000); // Then every 30 seconds
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
 
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading…</div></div>;
   if (!member) return <MemberLogin onSuccess={() => setRefreshKey((k) => k + 1)} />;
@@ -84,7 +99,10 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
   async function openNotifications() {
     setShowNotifications(true);
-    if (unreadCount > 0) { await fetch("/api/member/notifications", { method: "POST" }); onRefresh(); }
+    if (unreadCount > 0) { 
+      await fetch("/api/member/notifications", { method: "POST" }); 
+      onRefresh(); 
+    }
   }
 
   return (
