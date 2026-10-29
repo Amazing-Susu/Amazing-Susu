@@ -11,10 +11,7 @@ export default function AdminPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/admin/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.admin) { setAdminName(d.admin.fullName); setLoggedIn(true); } })
-      .finally(() => setChecking(false));
+    fetch("/api/admin/me").then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.admin) { setAdminName(d.admin.fullName); setLoggedIn(true); } }).finally(() => setChecking(false));
   }, []);
 
   function handleNavigate(view: string) {
@@ -29,16 +26,11 @@ export default function AdminPage() {
 
   return (
     <AdminShell
-      adminName={adminName}
-      currentView={currentView}
-      mobileMenuOpen={mobileMenuOpen}
-      setMobileMenuOpen={setMobileMenuOpen}
+      adminName={adminName} currentView={currentView} mobileMenuOpen={mobileMenuOpen} setMobileMenuOpen={setMobileMenuOpen}
       onNavigate={handleNavigate}
       onLogout={async () => {
         await fetch("/api/admin/logout", { method: "POST" });
-        setLoggedIn(false);
-        setCurrentView("dashboard");
-        setSelectedMemberId(null);
+        setLoggedIn(false); setCurrentView("dashboard"); setSelectedMemberId(null);
       }}
     >
       {currentView === "dashboard" && <DashboardView adminName={adminName} refreshKey={refreshKey} />}
@@ -67,7 +59,7 @@ function AdminLogin({ onSuccess }: { onSuccess: (name: string) => void }) {
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
       onSuccess(data.admin.fullName);
-    } catch { setError("Network error. Please try again."); setLoading(false); }
+    } catch { setError("Network error."); setLoading(false); }
   }
 
   return (
@@ -102,18 +94,12 @@ function AdminShell({ adminName, currentView, mobileMenuOpen, setMobileMenuOpen,
 
   return (
     <div className="flex min-h-screen bg-slate-50 relative">
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)} />
-      )}
-
+      {mobileMenuOpen && (<div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setMobileMenuOpen(false)} />)}
       <aside className={`fixed md:static inset-y-0 left-0 z-30 w-64 text-white transform transition-transform duration-200 ease-in-out ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"} flex flex-col`} style={{ backgroundColor: "#0a3d2a" }}>
         <div className="p-5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center text-xl" style={{ backgroundColor: "#16a34a" }}>🌱</div>
-            <div>
-              <div className="font-bold text-lg leading-tight">Amazing<span style={{ color: "#4ade80" }}>Susu</span></div>
-              <div className="text-[10px] opacity-70">Save Together • Grow Together</div>
-            </div>
+            <div><div className="font-bold text-lg leading-tight">Amazing<span style={{ color: "#4ade80" }}>Susu</span></div><div className="text-[10px] opacity-70">Save Together • Grow Together</div></div>
           </div>
           <button className="md:hidden text-white/70 text-xl" onClick={() => setMobileMenuOpen(false)}>×</button>
         </div>
@@ -242,15 +228,15 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Edit Payment state
+  const [editPayment, setEditPayment] = useState<any | null>(null);
+
   // Fetch groups & members for the ledger list
   useEffect(() => {
     setLoading(true);
-    fetch("/api/admin/payments/all") // Reusing an existing route or you can use /api/admin/groups with members
+    fetch("/api/admin/payouts") // We use this endpoint because it returns all groups and their members
       .then(r => r.json())
-      .then(async () => {
-        // Fetch all groups with members for the drill down
-        const res = await fetch("/api/admin/payouts"); // We know this endpoint returns groups with members!
-        const data = await res.json();
+      .then(data => {
         const mapped = (data.groups || []).map((g: any) => ({
           id: g.id,
           contributionAmount: g.contributionAmount.toString(),
@@ -277,6 +263,21 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     finally { setLoadingPayments(false); }
   }
 
+  async function handleDeletePayment(id: string) {
+    if (!confirm("Are you sure you want to permanently DELETE this payment? This action cannot be undone and will affect the member's total contributions.")) return;
+    try {
+      const res = await fetch("/api/admin/payments/delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId: id }),
+      });
+      if (res.ok) {
+        fetchMemberPayments(selectedMember!.id, selectedMember!.name);
+      } else {
+        alert("Failed to delete payment.");
+      }
+    } catch { alert("Network error."); }
+  }
+
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading ledger…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
@@ -296,39 +297,50 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
           {loadingPayments ? (
             <div className="p-12 text-center text-slate-400">Loading payments…</div>
           ) : (
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Date / Time</th>
-                  <th className="px-4 py-3 font-medium">Week</th>
-                  <th className="px-4 py-3 font-medium">Amount</th>
-                  <th className="px-4 py-3 font-medium">Method</th>
-                  <th className="px-4 py-3 font-medium">Ref</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-700">
-                {memberPayments.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">No payments recorded for this member yet.</td></tr>
-                ) : (
-                  memberPayments.map((p) => (
-                    <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-3 text-xs text-slate-500">{new Date(p.paymentDate).toLocaleString()}</td>
-                      <td className="px-4 py-3 font-medium">Wk {p.weekNumber || "-"}</td>
-                      <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount}</td>
-                      <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
-                      <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Date / Time</th>
+                    <th className="px-4 py-3 font-medium">Week</th>
+                    <th className="px-4 py-3 font-medium">Amount</th>
+                    <th className="px-4 py-3 font-medium">Method</th>
+                    <th className="px-4 py-3 font-medium">Ref</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="text-slate-700">
+                  {memberPayments.length === 0 ? (
+                    <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">No payments recorded for this member yet.</td></tr>
+                  ) : (
+                    memberPayments.map((p) => (
+                      <tr key={p.id} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-4 py-3 text-xs text-slate-500">{new Date(p.paymentDate).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-medium">Wk {p.weekNumber || "-"}</td>
+                        <td className="px-4 py-3 font-bold text-slate-800">GH₵{p.amount}</td>
+                        <td className="px-4 py-3 text-xs">{p.method.replace(/_/g, " ")}</td>
+                        <td className="px-4 py-3 font-mono text-xs">{p.reference}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-1 rounded-full font-bold ${p.status === "VERIFIED" ? "bg-green-100 text-green-700" : p.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"}`}>{p.status}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                             <button onClick={() => setEditPayment(p)} className="text-xs font-semibold text-blue-600 hover:underline">Edit</button>
+                             <button onClick={() => handleDeletePayment(p.id)} className="text-xs font-semibold text-red-600 hover:underline">Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
+
         {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
+        {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
       </div>
     );
   }
@@ -399,7 +411,84 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   );
 }
 
-// ==================== RECORD PAYMENT MODAL (NEW) ====================
+// ==================== EDIT PAYMENT MODAL (NEW) ====================
+
+function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClose: () => void; onSuccess: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({
+    amount: String(payment.amount),
+    paymentMethod: payment.method,
+    weekNumber: String(payment.weekNumber || 1),
+    status: payment.status,
+  });
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault(); setError(""); setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/payments/update", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId: payment.id, ...form }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Failed to update"); setSubmitting(false); return; }
+      onSuccess();
+    } catch { setError("Network error. Please try again."); setSubmitting(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">Edit Payment</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="bg-slate-50 rounded-xl p-3 text-sm">
+             <span className="text-slate-500">Reference:</span> <span className="font-mono font-bold">{payment.reference}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-sm font-semibold text-slate-700">Week *</label>
+              <select required value={form.weekNumber} onChange={e => setForm({...form, weekNumber: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                {Array.from({ length: 20 }, (_, i) => (<option key={i+1} value={i+1}>Week {i+1}</option>))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
+              <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
+            <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+              <option value="MTN_MOMO">MTN Mobile Money</option>
+              <option value="TELECEL_CASH">Telecel Cash</option>
+              <option value="AIRTELTIGO_MONEY">AirtelTigo Money</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CASH">Cash</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700">Status *</label>
+            <select value={form.status} onChange={e => setForm({...form, status: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+              <option value="VERIFIED">VERIFIED</option>
+              <option value="PENDING">PENDING</option>
+              <option value="REJECTED">REJECTED</option>
+            </select>
+          </div>
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+            <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Changes"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ==================== RECORD PAYMENT MODAL ====================
 
 function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [members, setMembers] = useState<{id: string, fullName: string, phone: string, groupAmount: string}[]>([]);
@@ -418,7 +507,6 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
       .finally(() => setLoadingMembers(false));
   }, []);
 
-  // Group members by their contribution amount
   const groupedMembers = members.reduce((acc, m) => {
     const amt = m.groupAmount;
     if (!acc[amt]) acc[amt] = [];
@@ -426,10 +514,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     return acc;
   }, {} as Record<string, typeof members>);
 
-  // Filter members based on search
-  const filteredMembers = members.filter(m => 
-    m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm)
-  );
+  const filteredMembers = members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError(""); setSubmitting(true);
@@ -455,13 +540,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
           <div>
             <label className="text-sm font-semibold text-slate-700 mb-1 block">Search Member</label>
-            <input 
-              type="text" 
-              placeholder="Search by name or phone..." 
-              value={searchTerm} 
-              onChange={e => setSearchTerm(e.target.value)} 
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 bg-slate-50" 
-            />
+            <input type="text" placeholder="Search by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 bg-slate-50" />
           </div>
 
           <div>
@@ -470,17 +549,11 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
               <select required value={form.memberId} onChange={e => setForm({...form, memberId: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
                 <option value="">— Choose Member —</option>
                 {searchTerm ? (
-                  // If searching, show a flat list of matching members
-                  filteredMembers.map(m => (
-                    <option key={m.id} value={m.id}>{m.fullName} ({m.phone}) - GH₵{m.groupAmount}</option>
-                  ))
+                  filteredMembers.map(m => (<option key={m.id} value={m.id}>{m.fullName} ({m.phone}) - GH₵{m.groupAmount}</option>))
                 ) : (
-                  // Otherwise, group by tier
                   Object.entries(groupedMembers).map(([amount, mems]) => (
                     <optgroup key={amount} label={`GH₵${amount} Group`}>
-                      {mems.map(m => (
-                        <option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>
-                      ))}
+                      {mems.map(m => (<option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>))}
                     </optgroup>
                   ))
                 )}
@@ -492,9 +565,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
             <div>
               <label className="text-sm font-semibold text-slate-700">Week *</label>
               <select required value={form.weekNumber} onChange={e => setForm({...form, weekNumber: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
-                {Array.from({ length: 20 }, (_, i) => (
-                  <option key={i+1} value={i+1}>Week {i+1}</option>
-                ))}
+                {Array.from({ length: 20 }, (_, i) => (<option key={i+1} value={i+1}>Week {i+1}</option>))}
               </select>
             </div>
             <div>
@@ -530,7 +601,6 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     </div>
   );
 }
-
 
 // ==================== MEMBERS VIEW ====================
 
