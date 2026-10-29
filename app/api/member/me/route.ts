@@ -27,7 +27,7 @@ export async function GET() {
   if (!member) return NextResponse.json({ error: "Member not found" }, { status: 404 });
 
   const contributionAmount = Number(member.group.contributionAmount);
-  const expectedPayout = 20 * contributionAmount - 50;
+  const expectedPayout = 20 * contributionAmount;
 
   const cycle = member.group.cycles[0];
   const now = new Date();
