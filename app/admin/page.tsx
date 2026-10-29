@@ -41,7 +41,8 @@ export default function AdminPage() {
       {currentView === "groups" && <GroupsView />}
       {currentView === "payments" && <PaymentsView onChanged={() => setRefreshKey((k) => k + 1)} />}
       {currentView === "payouts" && <PayoutsView />}
-      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "payments" && currentView !== "payouts" && <ComingSoon view={currentView} />}
+      {currentView === "reports" && <ReportsView refreshKey={refreshKey} />}
+      {currentView !== "dashboard" && currentView !== "members" && currentView !== "groups" && currentView !== "payments" && currentView !== "payouts" && currentView !== "reports" && <ComingSoon view={currentView} />}
     </AdminShell>
   );
 }
@@ -168,6 +169,82 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
   );
 }
 
+// ==================== REPORTS VIEW (NEW) ====================
+
+function ReportsView({ refreshKey }: { refreshKey: number }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/admin/reports")
+      .then(r => r.json())
+      .then(d => { if (d.totalCollected !== undefined) setData(d); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [refreshKey]);
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Generating reports…</div>;
+  if (!data) return <div className="text-red-500">Failed to load reports.</div>;
+
+  return (
+    <div className="space-y-6">
+      <div><h2 className="text-2xl font-bold text-slate-800">Financial Reports</h2><p className="text-sm text-slate-500">Live overview of your Susu business operations.</p></div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="text-sm text-slate-500 font-semibold mb-1">Total Collected</div>
+          <div className="text-3xl font-bold text-green-700">GH₵{data.totalCollected.toLocaleString()}</div>
+          <div className="text-xs text-slate-400 mt-2">All verified payments</div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="text-sm text-slate-500 font-semibold mb-1">Total Paid Out</div>
+          <div className="text-3xl font-bold text-blue-700">GH₵{data.totalPaidOut.toLocaleString()}</div>
+          <div className="text-xs text-slate-400 mt-2">Completed payouts</div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="text-sm text-slate-500 font-semibold mb-1">Pending Payouts</div>
+          <div className="text-3xl font-bold text-yellow-600">GH₵{data.pendingPayouts.toLocaleString()}</div>
+          <div className="text-xs text-slate-400 mt-2">Scheduled for future weeks</div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="text-sm text-slate-500 font-semibold mb-1">Cash Balance</div>
+          <div className="text-3xl font-bold text-slate-800">GH₵{data.balance.toLocaleString()}</div>
+          <div className="text-xs text-slate-400 mt-2">Collected minus Paid Out</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden mt-6">
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-800">Breakdown by Group</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="px-6 py-3 font-medium">Group Tier</th>
+                <th className="px-6 py-3 font-medium text-right">Total Collected</th>
+                <th className="px-6 py-3 font-medium text-right">Total Paid Out</th>
+                <th className="px-6 py-3 font-medium text-right">Balance</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-700">
+              {data.groupData.map((g: any) => (
+                <tr key={g.id} className="border-t border-slate-100">
+                  <td className="px-6 py-4 font-bold text-slate-800">GH₵{g.amount} Group</td>
+                  <td className="px-6 py-4 text-right text-green-700 font-semibold">GH₵{g.collected.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right text-blue-700 font-semibold">GH₵{g.paidOut.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-right font-bold text-slate-800">GH₵{(g.collected - g.paidOut).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ==================== GROUPS VIEW ====================
 
 type GroupData = { id: string; contributionAmount: string; maxMembers: number; currentMembers: number; availableSlots: number };
@@ -189,7 +266,7 @@ function GroupsView() {
         {groups.map(g => {
           const isFull = g.availableSlots <= 0;
           const percentage = (g.currentMembers / g.maxMembers) * 100;
-          const payout = (20 * Number(g.contributionAmount)); // REMOVED - 50 HERE
+          const payout = (20 * Number(g.contributionAmount));
 
           return (
             <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
