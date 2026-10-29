@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const contribution = Number(week.cycle.group.contributionAmount);
-    const expectedAmount = 20 * contribution - 50;
+    const expectedAmount = 20 * contribution;
 
     await prisma.$transaction([
       prisma.week.update({
