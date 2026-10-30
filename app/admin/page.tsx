@@ -38,7 +38,7 @@ export default function AdminPage() {
       {currentView === "members" && selectedMemberId && (
         <MemberDetailView memberId={selectedMemberId} onBack={() => { setSelectedMemberId(null); setRefreshKey((k) => k + 1); }} />
       )}
-      {currentView === "groups" && <GroupsView />}
+      {currentView === "groups" && <GroupsView onViewMember={(id) => { setSelectedMemberId(id); setCurrentView("members"); }} />}
       {currentView === "payments" && <PaymentsView onChanged={() => setRefreshKey((k) => k + 1)} />}
       {currentView === "payouts" && <PayoutsView />}
       {currentView === "reports" && <ReportsView refreshKey={refreshKey} />}
@@ -171,7 +171,7 @@ function DashboardView({ adminName, refreshKey }: { adminName: string; refreshKe
   );
 }
 
-// ==================== PASSWORDS VIEW (NEW) ====================
+// ==================== PASSWORDS VIEW ====================
 
 function PasswordsView() {
   const [members, setMembers] = useState<any[]>([]);
@@ -180,11 +180,7 @@ function PasswordsView() {
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/members")
-      .then(r => r.json())
-      .then(d => setMembers(d.members || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetch("/api/admin/members").then(r => r.json()).then(d => setMembers(d.members || [])).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading members…</div>;
@@ -193,28 +189,14 @@ function PasswordsView() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800">Password Management</h2>
-        <p className="text-sm text-slate-500">Reset or change login credentials for any member.</p>
-      </div>
-
+      <div><h2 className="text-2xl font-bold text-slate-800">Password Management</h2><p className="text-sm text-slate-500">Reset or change login credentials for any member.</p></div>
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
-          <input 
-            type="text" 
-            placeholder="Search member by name or phone..." 
-            value={searchTerm} 
-            onChange={e => setSearchTerm(e.target.value)} 
-            className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 text-sm" 
-          />
+          <input type="text" placeholder="Search member by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 text-sm" />
         </div>
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-            <tr>
-              <th className="px-4 py-3 font-medium">Member</th>
-              <th className="px-4 py-3 font-medium">Phone (Login ID)</th>
-              <th className="px-4 py-3 font-medium text-right">Action</th>
-            </tr>
+            <tr><th className="px-4 py-3 font-medium">Member</th><th className="px-4 py-3 font-medium">Phone (Login ID)</th><th className="px-4 py-3 font-medium text-right">Action</th></tr>
           </thead>
           <tbody className="text-slate-700">
             {filtered.length === 0 ? (
@@ -222,30 +204,16 @@ function PasswordsView() {
             ) : (
               filtered.map((m) => (
                 <tr key={m.id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span>
-                      <span className="font-semibold">{m.fullName}</span>
-                    </div>
-                  </td>
+                  <td className="px-4 py-3"><div className="flex items-center gap-3"><span className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</span><span className="font-semibold">{m.fullName}</span></div></td>
                   <td className="px-4 py-3 text-slate-600 font-mono text-xs">{m.phone}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => setSelectedMember(m)} className="text-xs font-semibold px-4 py-2 rounded-xl text-white" style={{ backgroundColor: "#16a34a" }}>Change Password</button>
-                  </td>
+                  <td className="px-4 py-3 text-right"><button onClick={() => setSelectedMember(m)} className="text-xs font-semibold px-4 py-2 rounded-xl text-white" style={{ backgroundColor: "#16a34a" }}>Change Password</button></td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-
-      {selectedMember && (
-        <ResetPasswordModal 
-          member={selectedMember} 
-          onClose={() => setSelectedMember(null)} 
-          onSuccess={() => { setSelectedMember(null); alert("Password updated successfully!"); }} 
-        />
-      )}
+      {selectedMember && <ResetPasswordModal member={selectedMember} onClose={() => setSelectedMember(null)} onSuccess={() => { setSelectedMember(null); alert("Password updated successfully!"); }} />}
     </div>
   );
 }
@@ -258,13 +226,9 @@ function ResetPasswordModal({ member, onClose, onSuccess }: { member: any; onClo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setError("");
     if (newPassword.length < 4) { setError("Password must be at least 4 characters."); return; }
-    
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/members/reset-password", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: member.id, newPassword }),
-      });
+      const res = await fetch("/api/admin/members/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memberId: member.id, newPassword }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to update password"); setSubmitting(false); return; }
       onSuccess();
@@ -279,21 +243,107 @@ function ResetPasswordModal({ member, onClose, onSuccess }: { member: any; onClo
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-slate-50 rounded-xl p-3 text-sm">
-            <div className="font-bold text-slate-800">{member.fullName}</div>
-            <div className="text-slate-500 font-mono text-xs mt-1">Login Phone: {member.phone}</div>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">New Password / PIN *</label>
-            <input type="text" required value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password or 4-digit PIN" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-mono" />
-            <p className="text-xs text-slate-500 mt-1">Give this new password to the member so they can log in.</p>
-          </div>
+          <div className="bg-slate-50 rounded-xl p-3 text-sm"><div className="font-bold text-slate-800">{member.fullName}</div><div className="text-slate-500 font-mono text-xs mt-1">Login Phone: {member.phone}</div></div>
+          <div><label className="text-sm font-semibold text-slate-700">New Password / PIN *</label><input type="text" required value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Enter new password or 4-digit PIN" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-mono" /><p className="text-xs text-slate-500 mt-1">Give this new password to the member so they can log in.</p></div>
           {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
             <button type="submit" disabled={submitting} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save New Password"}</button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// ==================== GROUPS VIEW ====================
+
+type GroupDetail = {
+  id: string;
+  contributionAmount: number;
+  expectedPayout: number;
+  maxMembers: number;
+  memberCount: number;
+  members: Array<{ id: string; fullName: string; phone: string }>;
+};
+
+function GroupsView({ onViewMember }: { onViewMember: (id: string) => void }) {
+  const [groups, setGroups] = useState<GroupDetail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/payouts").then(r => r.json()).then(d => {
+        const mapped = (d.groups || []).map((g: any) => ({
+          id: g.id, contributionAmount: g.contributionAmount, expectedPayout: g.expectedPayout, maxMembers: g.maxMembers, memberCount: g.memberCount, members: g.members,
+        }));
+        setGroups(mapped);
+      }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading groups…</div>;
+
+  if (selectedGroupId) {
+    const activeGroup = groups.find(g => g.id === selectedGroupId);
+    if (!activeGroup) return null;
+    const filteredMembers = activeGroup.members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <button onClick={() => { setSelectedGroupId(null); setSearchTerm(""); }} className="text-sm font-semibold text-green-700 hover:underline mb-2 block">← Back to Groups</button>
+            <h2 className="text-2xl font-bold text-slate-800">GH₵{activeGroup.contributionAmount} Group</h2>
+            <p className="text-sm text-slate-500">{activeGroup.memberCount} members</p>
+          </div>
+          <div className="flex gap-2">
+            <input type="text" placeholder="Search name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMembers.length === 0 ? (
+             <div className="col-span-full bg-white rounded-2xl p-12 text-center text-slate-400">No members in this group yet.</div>
+          ) : (
+            filteredMembers.map(m => (
+              <div key={m.id} onClick={() => onViewMember(m.id)} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</div>
+                <div>
+                  <div className="font-bold text-slate-800 text-sm">{m.fullName}</div>
+                  <div className="text-xs text-slate-500">{m.phone}</div>
+                </div>
+                <div className="ml-auto text-green-700 text-sm font-semibold">View →</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div><h2 className="text-2xl font-bold text-slate-800">Groups Overview</h2><p className="text-sm text-slate-500">Manage your 9 contribution tiers and their capacity.</p></div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {groups.map(g => {
+          const isFull = g.memberCount >= g.maxMembers;
+          const availableSlots = g.maxMembers - g.memberCount;
+          const percentage = (g.memberCount / g.maxMembers) * 100;
+
+          return (
+            <div key={g.id} onClick={() => setSelectedGroupId(g.id)} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md cursor-pointer transition">
+              <div className="flex justify-between items-start mb-4">
+                <div><div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contribution</div><div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div></div>
+                <div className={`text-xs px-2 py-1 rounded-full font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{isFull ? 'FULL' : `${availableSlots} slots left`}</div>
+              </div>
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm"><span className="text-slate-500">Members</span><span className="font-semibold text-slate-800">{g.memberCount} / {g.maxMembers}</span></div>
+                <div className="w-full bg-slate-100 rounded-full h-2"><div className={`h-2 rounded-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }}></div></div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3 flex justify-between items-center"><div className="text-xs text-slate-500">Expected Payout</div><div className="font-bold text-green-700">GH₵{g.expectedPayout.toLocaleString()}</div></div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -431,47 +481,6 @@ function ReportsView({ refreshKey }: { refreshKey: number }) {
   );
 }
 
-// ==================== GROUPS VIEW ====================
-
-type GroupData = { id: string; contributionAmount: string; maxMembers: number; currentMembers: number; availableSlots: number };
-
-function GroupsView() {
-  const [groups, setGroups] = useState<GroupData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/admin/groups").then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading groups…</div>;
-
-  return (
-    <div className="space-y-6">
-      <div><h2 className="text-2xl font-bold text-slate-800">Groups Overview</h2><p className="text-sm text-slate-500">Manage your 9 contribution tiers and their capacity.</p></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {groups.map(g => {
-          const isFull = g.availableSlots <= 0;
-          const percentage = (g.currentMembers / g.maxMembers) * 100;
-          const payout = (20 * Number(g.contributionAmount));
-          return (
-            <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition">
-              <div className="flex justify-between items-start mb-4">
-                <div><div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Contribution</div><div className="text-2xl font-bold text-slate-800">GH₵{g.contributionAmount}</div></div>
-                <div className={`text-xs px-2 py-1 rounded-full font-semibold ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{isFull ? 'FULL' : `${g.availableSlots} slots left`}</div>
-              </div>
-              <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-sm"><span className="text-slate-500">Members</span><span className="font-semibold text-slate-800">{g.currentMembers} / {g.maxMembers}</span></div>
-                <div className="w-full bg-slate-100 rounded-full h-2"><div className={`h-2 rounded-full ${isFull ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }}></div></div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-3 flex justify-between items-center"><div className="text-xs text-slate-500">Expected Payout</div><div className="font-bold text-green-700">GH₵{payout.toLocaleString()}</div></div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ==================== PAYMENTS LEDGER VIEW ====================
 
 type LedgerGroup = { id: string; contributionAmount: string; members: Array<{ id: string; fullName: string; phone: string }> };
@@ -481,10 +490,12 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showRecordModal, setShowRecordModal] = useState(false);
+  
+  // Instead of a boolean, we store the member object if we want to pre-select them
+  const [showRecordModal, setShowRecordModal] = useState<{ id: string, name: string, groupAmount: string } | boolean>(false);
   
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedMember, setSelectedMember] = useState<{id: string, name: string} | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{id: string, name: string, phone: string, groupAmount: string} | null>(null);
   const [memberPayments, setMemberPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -500,8 +511,8 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
 
   function reload() { setRefreshKey(k => k + 1); onChanged(); }
 
-  async function fetchMemberPayments(memberId: string, memberName: string) {
-    setSelectedMember({ id: memberId, name: memberName });
+  async function fetchMemberPayments(memberId: string, memberName: string, phone: string, groupAmount: string) {
+    setSelectedMember({ id: memberId, name: memberName, phone, groupAmount });
     setLoadingPayments(true);
     try {
       const res = await fetch(`/api/admin/members/detail?id=${memberId}`);
@@ -515,7 +526,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     if (!confirm("Are you sure you want to permanently DELETE this payment? This action cannot be undone and will affect the member's total contributions.")) return;
     try {
       const res = await fetch("/api/admin/payments/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: id }) });
-      if (res.ok) fetchMemberPayments(selectedMember!.id, selectedMember!.name);
+      if (res.ok && selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount);
       else alert("Failed to delete payment.");
     } catch { alert("Network error."); }
   }
@@ -523,6 +534,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading ledger…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
+  // If a member is selected, show their history
   if (selectedMember) {
     return (
       <div className="space-y-6">
@@ -531,7 +543,8 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             <button onClick={() => setSelectedMember(null)} className="text-sm font-semibold text-green-700 hover:underline mb-2 block">← Back to Members</button>
             <h2 className="text-2xl font-bold text-slate-800">{selectedMember.name} - Payment History</h2>
           </div>
-          <button onClick={() => setShowRecordModal(true)} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
+          {/* We pass the member object here so the modal knows exactly who to record for */}
+          <button onClick={() => setShowRecordModal({ id: selectedMember.id, name: selectedMember.name, groupAmount: selectedMember.groupAmount })} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
         </div>
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           {loadingPayments ? (
@@ -568,8 +581,9 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             </div>
           )}
         </div>
-        {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
-        {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); fetchMemberPayments(selectedMember.id, selectedMember.name); }} />}
+        {/* The modal receives the initialMember prop if we clicked the button above */}
+        {showRecordModal && <RecordPaymentModal initialMember={typeof showRecordModal === 'object' ? showRecordModal : undefined} onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount); }} />}
+        {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount); }} />}
       </div>
     );
   }
@@ -591,7 +605,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMembers.map(m => (
-            <div key={m.id} onClick={() => fetchMemberPayments(m.id, m.fullName)} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex items-center gap-3">
+            <div key={m.id} onClick={() => fetchMemberPayments(m.id, m.fullName, m.phone, activeGroup.contributionAmount)} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:shadow-md cursor-pointer transition flex items-center gap-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: "#16a34a" }}>{m.fullName.charAt(0).toUpperCase()}</div>
               <div>
                 <div className="font-bold text-slate-800 text-sm">{m.fullName}</div>
@@ -601,7 +615,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             </div>
           ))}
         </div>
-        {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
+        {showRecordModal && <RecordPaymentModal initialMember={typeof showRecordModal === 'object' ? showRecordModal : undefined} onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
       </div>
     );
   }
@@ -627,7 +641,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
           </div>
         ))}
       </div>
-      {showRecordModal && <RecordPaymentModal onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
+      {showRecordModal && <RecordPaymentModal initialMember={typeof showRecordModal === 'object' ? showRecordModal : undefined} onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); reload(); }} />}
     </div>
   );
 }
@@ -697,18 +711,36 @@ function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClo
   );
 }
 
-function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+// ==================== RECORD PAYMENT MODAL (REBUILT FOR BETTER UX) ====================
+
+function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMember?: { id: string, name: string, groupAmount: string }, onClose: () => void, onSuccess: () => void }) {
   const [members, setMembers] = useState<{id: string, fullName: string, phone: string, groupAmount: string}[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ memberId: "", amount: "", paymentMethod: "MTN_MOMO", weekNumber: "1", transactionId: "" });
+  
+  const [form, setForm] = useState({ memberId: initialMember?.id || "", amount: "", paymentMethod: "MTN_MOMO", weekNumber: "1", transactionId: "" });
+  
+  // Step management
+  // If initialMember is passed, skip straight to the form (Step 2)
+  const [step, setStep] = useState<"search" | "group" | "form">(initialMember ? "form" : "search");
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(initialMember?.groupAmount || null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Selected member display info
+  const activeMember = initialMember 
+    ? initialMember 
+    : members.find(m => m.id === form.memberId);
+
   useEffect(() => {
-    fetch("/api/admin/members").then(r => r.json()).then(d => setMembers((d.members || []).filter((m: any) => m.status === "ACTIVE"))).catch(() => {}).finally(() => setLoadingMembers(false));
+    fetch("/api/admin/members")
+      .then(r => r.json())
+      .then(d => setMembers((d.members || []).filter((m: any) => m.status === "ACTIVE")))
+      .catch(() => {})
+      .finally(() => setLoadingMembers(false));
   }, []);
 
+  // Group members by their tier
   const groupedMembers = members.reduce((acc, m) => {
     const amt = m.groupAmount;
     if (!acc[amt]) acc[amt] = [];
@@ -716,6 +748,7 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     return acc;
   }, {} as Record<string, typeof members>);
 
+  // Filter members globally for search
   const filteredMembers = members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
 
   async function handleSubmit(e: React.FormEvent) {
@@ -731,64 +764,150 @@ function RecordPaymentModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+        
+        {/* HEADER */}
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-800">Record Payment</h2>
+          <div className="flex items-center gap-2">
+             {step !== "search" && !initialMember && (
+                <button onClick={() => { setStep("search"); setSelectedGroup(null); setSearchTerm(""); }} className="text-slate-400 hover:text-slate-700 font-bold text-xl pr-2">←</button>
+             )}
+             <h2 className="text-lg font-bold text-slate-800">
+               {step === "search" ? "Record Payment" : step === "group" ? `Select Member` : `Pay ${activeMember?.name}`}
+             </h2>
+          </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
-          <div>
-            <label className="text-sm font-semibold text-slate-700 mb-1 block">Search Member</label>
-            <input type="text" placeholder="Search by name or phone..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 bg-slate-50" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Select Member *</label>
-            {loadingMembers ? <div className="text-sm text-slate-400 py-2">Loading members…</div> : (
-              <select required value={form.memberId} onChange={e => setForm({...form, memberId: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
-                <option value="">— Choose Member —</option>
-                {searchTerm ? (
-                  filteredMembers.map(m => (<option key={m.id} value={m.id}>{m.fullName} ({m.phone}) - GH₵{m.groupAmount}</option>))
-                ) : (
-                  Object.entries(groupedMembers).map(([amount, mems]) => (
-                    <optgroup key={amount} label={`GH₵${amount} Group`}>
-                      {mems.map(m => (<option key={m.id} value={m.id}>{m.fullName} ({m.phone})</option>))}
-                    </optgroup>
+
+        <div className="p-5 overflow-y-auto">
+          
+          {/* STEP 1: SEARCH OR CHOOSE GROUP */}
+          {step === "search" && (
+            <div className="space-y-4">
+              <div className="relative">
+                <span className="absolute left-3 top-3 text-slate-400">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Search by name or phone..." 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-2 bg-slate-50" 
+                />
+              </div>
+
+              {searchTerm ? (
+                <div className="space-y-2 mt-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Search Results</p>
+                  {filteredMembers.length === 0 ? (
+                    <div className="text-center py-6 text-slate-400 text-sm">No members found.</div>
+                  ) : (
+                    filteredMembers.map(m => (
+                      <div key={m.id} onClick={() => { setForm({...form, memberId: m.id, amount: m.groupAmount}); setStep("form"); }} className="p-3 rounded-xl border border-slate-100 hover:border-green-300 hover:bg-green-50 cursor-pointer flex justify-between items-center transition">
+                        <div>
+                          <div className="font-bold text-slate-800">{m.fullName}</div>
+                          <div className="text-xs text-slate-500">{m.phone} • GH₵{m.groupAmount} Group</div>
+                        </div>
+                        <div className="text-green-600 font-bold">Select</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Select by Group</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.keys(groupedMembers).sort((a,b) => Number(a) - Number(b)).map(amt => (
+                      <div key={amt} onClick={() => { setSelectedGroup(amt); setStep("group"); }} className="bg-white border border-slate-200 rounded-xl p-4 text-center cursor-pointer hover:border-green-500 hover:shadow-sm transition">
+                        <div className="text-xl font-bold text-slate-800">GH₵{amt}</div>
+                        <div className="text-xs text-slate-500 mt-1">{groupedMembers[amt].length} members</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 2: SELECT MEMBER FROM GROUP */}
+          {step === "group" && selectedGroup && (
+            <div className="space-y-4">
+              <div className="relative">
+                <span className="absolute left-3 top-3 text-slate-400">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder={`Search in GH₵${selectedGroup} group...`} 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)} 
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 outline-none focus:ring-2 bg-slate-50" 
+                />
+              </div>
+              
+              <div className="space-y-2 mt-2">
+                {groupedMembers[selectedGroup]
+                  .filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm))
+                  .map(m => (
+                    <div key={m.id} onClick={() => { setForm({...form, memberId: m.id, amount: m.groupAmount}); setStep("form"); }} className="p-3 rounded-xl border border-slate-100 hover:border-green-300 hover:bg-green-50 cursor-pointer flex justify-between items-center transition">
+                      <div>
+                        <div className="font-bold text-slate-800">{m.fullName}</div>
+                        <div className="text-xs text-slate-500">{m.phone}</div>
+                      </div>
+                      <div className="text-green-600 font-bold">Select</div>
+                    </div>
                   ))
-                )}
-              </select>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-sm font-semibold text-slate-700">Week *</label>
-              <select required value={form.weekNumber} onChange={e => setForm({...form, weekNumber: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
-                {Array.from({ length: 20 }, (_, i) => (<option key={i+1} value={i+1}>Week {i+1}</option>))}
-              </select>
+                }
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
-              <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold" />
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
-            <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
-              <option value="MTN_MOMO">MTN Mobile Money</option>
-              <option value="TELECEL_CASH">Telecel Cash</option>
-              <option value="AIRTELTIGO_MONEY">AirtelTigo Money</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="CASH">Cash</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-slate-700">Transaction Ref (optional)</label>
-            <input type="text" value={form.transactionId} onChange={e => setForm({...form, transactionId: e.target.value})} placeholder="e.g. MoMo ID" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" />
-          </div>
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
-          <div className="flex gap-3 pt-2 sticky bottom-0 bg-white">
-            <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
-            <button type="submit" disabled={submitting || loadingMembers} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Payment"}</button>
-          </div>
-        </form>
+          )}
+
+          {/* STEP 3: THE PAYMENT FORM */}
+          {step === "form" && activeMember && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="bg-green-50 rounded-xl p-4 border border-green-200 flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg">{activeMember.name.charAt(0).toUpperCase()}</div>
+                 <div>
+                   <div className="font-bold text-slate-800">{activeMember.name}</div>
+                   <div className="text-xs text-slate-500">Group: GH₵{activeMember.groupAmount}</div>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Week *</label>
+                  <select required value={form.weekNumber} onChange={e => setForm({...form, weekNumber: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                    {Array.from({ length: 20 }, (_, i) => (<option key={i+1} value={i+1}>Week {i+1}</option>))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">Amount (GH₵) *</label>
+                  <input type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} placeholder="e.g. 500" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 font-bold" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-700">Payment Method *</label>
+                <select value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2 bg-white">
+                  <option value="MTN_MOMO">MTN Mobile Money</option>
+                  <option value="TELECEL_CASH">Telecel Cash</option>
+                  <option value="AIRTELTIGO_MONEY">AirtelTigo Money</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                  <option value="CASH">Cash</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="text-sm font-semibold text-slate-700">Transaction Ref (optional)</label>
+                <input type="text" value={form.transactionId} onChange={e => setForm({...form, transactionId: e.target.value})} placeholder="e.g. MoMo ID" className="mt-1 w-full border border-slate-200 rounded-xl px-3 py-2.5 outline-none focus:ring-2" />
+              </div>
+
+              {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>}
+              
+              <div className="flex gap-3 pt-4 sticky bottom-0 bg-white">
+                <button type="button" onClick={onClose} className="flex-1 border-2 border-slate-200 text-slate-700 font-semibold py-3 rounded-xl">Cancel</button>
+                <button type="submit" disabled={submitting || loadingMembers} className="flex-1 text-white font-semibold py-3 rounded-xl disabled:opacity-60" style={{ backgroundColor: "#16a34a" }}>{submitting ? "Saving…" : "Save Payment"}</button>
+              </div>
+            </form>
+          )}
+
+        </div>
       </div>
     </div>
   );
