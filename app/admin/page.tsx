@@ -491,11 +491,10 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   
-  // Instead of a boolean, we store the member object if we want to pre-select them
-  const [showRecordModal, setShowRecordModal] = useState<{ id: string, name: string, groupAmount: string } | boolean>(false);
+  const [showRecordModal, setShowRecordModal] = useState<{ id: string, fullName: string, groupAmount: string } | boolean>(false);
   
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedMember, setSelectedMember] = useState<{id: string, name: string, phone: string, groupAmount: string} | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{id: string, fullName: string, phone: string, groupAmount: string} | null>(null);
   const [memberPayments, setMemberPayments] = useState<any[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -512,7 +511,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   function reload() { setRefreshKey(k => k + 1); onChanged(); }
 
   async function fetchMemberPayments(memberId: string, memberName: string, phone: string, groupAmount: string) {
-    setSelectedMember({ id: memberId, name: memberName, phone, groupAmount });
+    setSelectedMember({ id: memberId, fullName: memberName, phone, groupAmount });
     setLoadingPayments(true);
     try {
       const res = await fetch(`/api/admin/members/detail?id=${memberId}`);
@@ -526,7 +525,7 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
     if (!confirm("Are you sure you want to permanently DELETE this payment? This action cannot be undone and will affect the member's total contributions.")) return;
     try {
       const res = await fetch("/api/admin/payments/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paymentId: id }) });
-      if (res.ok && selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount);
+      if (res.ok && selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.fullName, selectedMember.phone, selectedMember.groupAmount);
       else alert("Failed to delete payment.");
     } catch { alert("Network error."); }
   }
@@ -534,17 +533,15 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
   if (loading) return <div className="bg-white rounded-2xl p-12 text-center text-slate-400">Loading ledger…</div>;
   if (error) return <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-6">{error}</div>;
 
-  // If a member is selected, show their history
   if (selectedMember) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <button onClick={() => setSelectedMember(null)} className="text-sm font-semibold text-green-700 hover:underline mb-2 block">← Back to Members</button>
-            <h2 className="text-2xl font-bold text-slate-800">{selectedMember.name} - Payment History</h2>
+            <h2 className="text-2xl font-bold text-slate-800">{selectedMember.fullName} - Payment History</h2>
           </div>
-          {/* We pass the member object here so the modal knows exactly who to record for */}
-          <button onClick={() => setShowRecordModal({ id: selectedMember.id, name: selectedMember.name, groupAmount: selectedMember.groupAmount })} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
+          <button onClick={() => setShowRecordModal({ id: selectedMember.id, fullName: selectedMember.fullName, groupAmount: selectedMember.groupAmount })} className="text-white font-semibold px-5 py-2.5 rounded-xl" style={{ backgroundColor: "#16a34a" }}>+ Record Payment</button>
         </div>
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           {loadingPayments ? (
@@ -581,9 +578,8 @@ function PaymentsView({ onChanged }: { onChanged: () => void }) {
             </div>
           )}
         </div>
-        {/* The modal receives the initialMember prop if we clicked the button above */}
-        {showRecordModal && <RecordPaymentModal initialMember={typeof showRecordModal === 'object' ? showRecordModal : undefined} onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount); }} />}
-        {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.name, selectedMember.phone, selectedMember.groupAmount); }} />}
+        {showRecordModal && <RecordPaymentModal initialMember={typeof showRecordModal === 'object' ? showRecordModal : undefined} onClose={() => setShowRecordModal(false)} onSuccess={() => { setShowRecordModal(false); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.fullName, selectedMember.phone, selectedMember.groupAmount); }} />}
+        {editPayment && <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} onSuccess={() => { setEditPayment(null); if(selectedMember) fetchMemberPayments(selectedMember.id, selectedMember.fullName, selectedMember.phone, selectedMember.groupAmount); }} />}
       </div>
     );
   }
@@ -711,9 +707,9 @@ function EditPaymentModal({ payment, onClose, onSuccess }: { payment: any; onClo
   );
 }
 
-// ==================== RECORD PAYMENT MODAL (REBUILT FOR BETTER UX) ====================
+// ==================== RECORD PAYMENT MODAL ====================
 
-function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMember?: { id: string, name: string, groupAmount: string }, onClose: () => void, onSuccess: () => void }) {
+function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMember?: { id: string, fullName: string, groupAmount: string }, onClose: () => void, onSuccess: () => void }) {
   const [members, setMembers] = useState<{id: string, fullName: string, phone: string, groupAmount: string}[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -721,15 +717,12 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
   
   const [form, setForm] = useState({ memberId: initialMember?.id || "", amount: "", paymentMethod: "MTN_MOMO", weekNumber: "1", transactionId: "" });
   
-  // Step management
-  // If initialMember is passed, skip straight to the form (Step 2)
   const [step, setStep] = useState<"search" | "group" | "form">(initialMember ? "form" : "search");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(initialMember?.groupAmount || null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Selected member display info
-  const activeMember = initialMember 
-    ? initialMember 
+  const activeMember = initialMember
+    ? initialMember
     : members.find(m => m.id === form.memberId);
 
   useEffect(() => {
@@ -740,7 +733,6 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
       .finally(() => setLoadingMembers(false));
   }, []);
 
-  // Group members by their tier
   const groupedMembers = members.reduce((acc, m) => {
     const amt = m.groupAmount;
     if (!acc[amt]) acc[amt] = [];
@@ -748,7 +740,6 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
     return acc;
   }, {} as Record<string, typeof members>);
 
-  // Filter members globally for search
   const filteredMembers = members.filter(m => m.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm));
 
   async function handleSubmit(e: React.FormEvent) {
@@ -765,14 +756,13 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         
-        {/* HEADER */}
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
           <div className="flex items-center gap-2">
              {step !== "search" && !initialMember && (
                 <button onClick={() => { setStep("search"); setSelectedGroup(null); setSearchTerm(""); }} className="text-slate-400 hover:text-slate-700 font-bold text-xl pr-2">←</button>
              )}
              <h2 className="text-lg font-bold text-slate-800">
-               {step === "search" ? "Record Payment" : step === "group" ? `Select Member` : `Pay ${activeMember?.name}`}
+               {step === "search" ? "Record Payment" : step === "group" ? `Select Member` : `Pay ${activeMember?.fullName}`}
              </h2>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
@@ -780,7 +770,6 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
 
         <div className="p-5 overflow-y-auto">
           
-          {/* STEP 1: SEARCH OR CHOOSE GROUP */}
           {step === "search" && (
             <div className="space-y-4">
               <div className="relative">
@@ -827,7 +816,6 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
             </div>
           )}
 
-          {/* STEP 2: SELECT MEMBER FROM GROUP */}
           {step === "group" && selectedGroup && (
             <div className="space-y-4">
               <div className="relative">
@@ -858,13 +846,12 @@ function RecordPaymentModal({ initialMember, onClose, onSuccess }: { initialMemb
             </div>
           )}
 
-          {/* STEP 3: THE PAYMENT FORM */}
           {step === "form" && activeMember && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="bg-green-50 rounded-xl p-4 border border-green-200 flex items-center gap-3">
-                 <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg">{activeMember.name.charAt(0).toUpperCase()}</div>
+                 <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg">{activeMember.fullName.charAt(0).toUpperCase()}</div>
                  <div>
-                   <div className="font-bold text-slate-800">{activeMember.name}</div>
+                   <div className="font-bold text-slate-800">{activeMember.fullName}</div>
                    <div className="text-xs text-slate-500">Group: GH₵{activeMember.groupAmount}</div>
                  </div>
               </div>
