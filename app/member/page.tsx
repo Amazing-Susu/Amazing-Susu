@@ -94,7 +94,7 @@ export default function MemberPage() {
       const res = await fetch("/api/member/avatar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarBase64: resizedBase64 }), // API still expects avatarBase64 in payload
+        body: JSON.stringify({ avatarBase64: resizedBase64 }),
       });
 
       if (res.ok) {
@@ -279,8 +279,9 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
       <div className="max-w-md mx-auto px-4 -mt-16 space-y-4">
         
+        {/* PROFILE CARD WITH CAMERA BADGE */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-4">
-          <div className="relative group">
+          <div className="relative">
             <div 
               onClick={handleAvatarClick}
               className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner cursor-pointer overflow-hidden relative" 
@@ -291,12 +292,20 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
               ) : (
                 member.fullName.charAt(0).toUpperCase()
               )}
-              <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center transition">
-                <span className="text-white text-[10px] font-bold text-center">
-                  {uploading ? "..." : "Edit"}
-                </span>
-              </div>
+              
+              {/* Loading Overlay */}
+              {uploading && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <span className="text-white text-[10px] font-bold">...</span>
+                </div>
+              )}
             </div>
+
+            {/* NEW: Always-Visible Camera Badge */}
+            <div className="absolute bottom-0 right-0 bg-green-600 border-2 border-white w-6 h-6 rounded-full flex items-center justify-center shadow-md pointer-events-none z-10">
+              <span className="text-[10px]">📷</span>
+            </div>
+
             <input 
               type="file" 
               accept="image/*" 
