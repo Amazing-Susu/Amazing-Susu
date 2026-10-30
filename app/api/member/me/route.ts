@@ -60,17 +60,19 @@ export async function GET() {
   const paidPayout = member.payouts.find((p) => p.status === "PAID");
   const scheduledPayout = member.payouts.find((p) => p.status === "SCHEDULED");
 
-  return NextResponse.json({
-    member: {
-      id: member.id,
-      fullName: member.fullName,
-      phone: member.phone,
-      joinedAt: member.joinedAt.toISOString(), // <-- ADDED THIS
-      groupAmount: contributionAmount,
-      expectedPayout,
-      currentWeekNumber,
-      cycleId: cycle?.id || null,
-    },
+ return NextResponse.json({
+  member: {
+    id: member.id,
+    fullName: member.fullName,
+    phone: member.phone,
+    joinedAt: member.joinedAt.toISOString(),
+    profilePicture: member.profilePicture, // <-- ADD THIS
+    groupAmount: contributionAmount,
+    expectedPayout,
+    currentWeekNumber,
+    cycleId: cycle?.id || null,
+  },
+  // ... rest stays the same
     weeklyStatus,
     payments: member.payments.map((p) => ({
       id: p.id,
