@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import InstallBanner from "./InstallBanner";
 
-type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; };
+type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; avatarUrl: string | null; };
 type WeeklyRow = { weekNumber: number; weekId: string; dueDate: string; expected: number; verified: number; pending: number; status: "NOT_PAID" | "PARTIAL" | "FULL"; };
 type PaymentRow = { id: string; reference: string; amount: number; method: string; status: string; paymentDate: string; rejectionReason: string | null; };
 type PayoutStatus = { state: "PENDING" | "SCHEDULED" | "RECEIVED"; amount: number; paidAt?: string | null; };
@@ -17,6 +17,10 @@ export default function MemberPage() {
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   
+  // Avatar Upload State
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const prevUnreadCount = useRef(0);
 
@@ -78,6 +82,73 @@ export default function MemberPage() {
     }
   }
 
+  // --- AVATAR UPLOAD LOGIC ---
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const resizedBase64 = await resizeImage(file, 150, 150);
+      
+      const res = await fetch("/api/member/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarBase64: resizedBase64 }),
+      });
+
+      if (res.ok) {
+        setRefreshKey((k) => k + 1); // Refresh data to show the new avatar
+      } else {
+        alert("Failed to upload image.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error uploading image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resizeImage = (file: File, maxWidth: number, maxHeight: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width *= maxHeight / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", 0.8));
+        };
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   if (checking) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-slate-500">Loading…</div></div>;
   
   if (!member) return (
@@ -100,6 +171,10 @@ export default function MemberPage() {
         member={member} weekly={weekly} payments={payments} payoutStatus={payoutStatus} notifications={notifications}
         onRefresh={() => setRefreshKey((k) => k + 1)}
         onLogout={async () => { await fetch("/api/member/logout", { method: "POST" }); setMember(null); }}
+        uploading={uploading}
+        handleAvatarClick={handleAvatarClick}
+        fileInputRef={fileInputRef}
+        handleFileChange={handleFileChange}
       />
       <InstallBanner />
     </>
@@ -147,9 +222,10 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function MemberDashboard({ member, weekly, payments, payoutStatus, notifications, onRefresh, onLogout }: {
+function MemberDashboard({ member, weekly, payments, payoutStatus, notifications, onRefresh, onLogout, uploading, handleAvatarClick, fileInputRef, handleFileChange }: {
   member: MemberInfo; weekly: WeeklyRow[]; payments: PaymentRow[]; payoutStatus: PayoutStatus | null; notifications: NotificationRow[];
   onRefresh: () => void; onLogout: () => void;
+  uploading: boolean; handleAvatarClick: () => void; fileInputRef: React.RefObject<HTMLInputElement | null>; handleFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   
@@ -214,8 +290,34 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
       </header>
 
       <div className="max-w-md mx-auto px-4 -mt-16 space-y-4">
+        
+        {/* PROFILE CARD WITH AVATAR UPLOAD */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner" style={{ background: "linear-gradient(135deg, #16a34a, #15803d)" }}>{member.fullName.charAt(0).toUpperCase()}</div>
+          <div className="relative group">
+            <div 
+              onClick={handleAvatarClick}
+              className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner cursor-pointer overflow-hidden relative" 
+              style={!member.avatarUrl ? { background: "linear-gradient(135deg, #16a34a, #15803d)" } : {}}
+            >
+              {member.avatarUrl ? (
+                <img src={member.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                member.fullName.charAt(0).toUpperCase()
+              )}
+              <div className="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center transition">
+                <span className="text-white text-[10px] font-bold text-center">
+                  {uploading ? "..." : "Edit"}
+                </span>
+              </div>
+            </div>
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              className="hidden" 
+            />
+          </div>
           <div>
             <div className="font-bold text-slate-800 text-lg leading-tight">{member.fullName}</div>
             <div className="text-xs text-slate-500 mt-0.5">{member.phone}</div>
