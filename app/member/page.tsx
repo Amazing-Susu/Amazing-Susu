@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import InstallBanner from "./InstallBanner";
 
-type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; avatarUrl: string | null; };
+type MemberInfo = { id: string; fullName: string; phone: string; joinedAt: string; groupAmount: number; expectedPayout: number; currentWeekNumber: number; cycleId: string | null; profilePicture: string | null; };
 type WeeklyRow = { weekNumber: number; weekId: string; dueDate: string; expected: number; verified: number; pending: number; status: "NOT_PAID" | "PARTIAL" | "FULL"; };
 type PaymentRow = { id: string; reference: string; amount: number; method: string; status: string; paymentDate: string; rejectionReason: string | null; };
 type PayoutStatus = { state: "PENDING" | "SCHEDULED" | "RECEIVED"; amount: number; paidAt?: string | null; };
@@ -17,7 +17,6 @@ export default function MemberPage() {
   const [checking, setChecking] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   
-  // Avatar Upload State
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,24 +31,22 @@ export default function MemberPage() {
         if (d?.member) {
           setMember(d.member); setWeekly(d.weeklyStatus || []); setPayments(d.payments || []); setPayoutStatus(d.payoutStatus || null);
           
-          // Check if there is an overdue week (1 week past due) to play the alarm
           const now = new Date();
           const hasOverdue = (d.weeklyStatus || []).some((w: any) => {
             if (w.status === "FULL") return false;
             const due = new Date(w.dueDate);
-            const gracePeriod = new Date(due.getTime() + (7 * 24 * 60 * 60 * 1000)); // +7 days
-            return now > gracePeriod; // It is overdue if today is past the 7-day grace period
+            const gracePeriod = new Date(due.getTime() + (7 * 24 * 60 * 60 * 1000));
+            return now > gracePeriod;
           });
 
           if (hasOverdue) {
-            // Wait 1.5 seconds for page to fully load and React to attach event listeners
             setTimeout(() => playAlarm(), 1500); 
           }
         }
       }).finally(() => setChecking(false));
   }, [refreshKey]);
 
-  // Notification poller (checks every 10 seconds)
+  // Notification poller
   useEffect(() => {
     function fetchNotifications() {
       fetch("/api/member/notifications", { cache: "no-store" })
@@ -59,7 +56,6 @@ export default function MemberPage() {
           setNotifications(notifs);
           
           const unread = notifs.filter((n: any) => !n.readAt).length;
-          // If new notification arrives (and it's not the first load)
           if (unread > prevUnreadCount.current && prevUnreadCount.current !== 0) {
             playAlarm();
           }
@@ -75,7 +71,7 @@ export default function MemberPage() {
 
   function playAlarm() {
     if (audioRef.current) {
-      audioRef.current.volume = 0.5; // 50% volume
+      audioRef.current.volume = 0.5;
       audioRef.current.play().catch(e => {
         console.log("Browser blocked audio. User needs to interact first.", e);
       });
@@ -98,11 +94,11 @@ export default function MemberPage() {
       const res = await fetch("/api/member/avatar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatarBase64: resizedBase64 }),
+        body: JSON.stringify({ avatarBase64: resizedBase64 }), // API still expects avatarBase64 in payload
       });
 
       if (res.ok) {
-        setRefreshKey((k) => k + 1); // Refresh data to show the new avatar
+        setRefreshKey((k) => k + 1); 
       } else {
         alert("Failed to upload image.");
       }
@@ -160,12 +156,7 @@ export default function MemberPage() {
 
   return (
     <>
-      {/* Hidden Audio Player for Alarm (Using a standard web audio file) */}
-      <audio 
-        ref={audioRef} 
-        src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" 
-        preload="auto" 
-      />
+      <audio ref={audioRef} src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto" />
 
       <MemberDashboard
         member={member} weekly={weekly} payments={payments} payoutStatus={payoutStatus} notifications={notifications}
@@ -194,7 +185,6 @@ function MemberLogin({ onSuccess }: { onSuccess: () => void }) {
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Login failed"); setLoading(false); return; }
       
-      // Force a play on the user's click just before logging in, to "unlock" the audio engine in the browser
       const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
       audio.volume = 0;
       audio.play().catch(() => {});
@@ -229,10 +219,8 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 }) {
   const [showNotifications, setShowNotifications] = useState(false);
   
-  // Find the FIRST week that is NOT fully paid
   const nextDueWeek = weekly.find((w) => w.status !== "FULL");
 
-  // Determine if this unpaid week is officially "Overdue" (past the 7-day grace period)
   let isOverdue = false;
   if (nextDueWeek) {
     const now = new Date();
@@ -291,16 +279,15 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
 
       <div className="max-w-md mx-auto px-4 -mt-16 space-y-4">
         
-        {/* PROFILE CARD WITH AVATAR UPLOAD */}
         <div className="bg-white rounded-2xl p-4 shadow-lg border border-slate-100 flex items-center gap-4">
           <div className="relative group">
             <div 
               onClick={handleAvatarClick}
               className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-inner cursor-pointer overflow-hidden relative" 
-              style={!member.avatarUrl ? { background: "linear-gradient(135deg, #16a34a, #15803d)" } : {}}
+              style={!member.profilePicture ? { background: "linear-gradient(135deg, #16a34a, #15803d)" } : {}}
             >
-              {member.avatarUrl ? (
-                <img src={member.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              {member.profilePicture ? (
+                <img src={member.profilePicture} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 member.fullName.charAt(0).toUpperCase()
               )}
@@ -325,7 +312,6 @@ function MemberDashboard({ member, weekly, payments, payoutStatus, notifications
           </div>
         </div>
 
-        {/* ONLY SHOW THE RED ALARM IF IT IS OVERDUE BY 1 WEEK */}
         {nextDueWeek && isOverdue && (
           <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center justify-between shadow-sm animate-pulse">
             <div className="flex items-center gap-3">
