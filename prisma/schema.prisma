@@ -63,18 +63,20 @@ model Admin {
 }
 
 model Member {
-  id                  String       @id @default(cuid())
-  fullName            String
-  phone               String       @unique
-  whatsappNumber      String?
- ghanaCardNumber  String?      @unique
-  dateOfBirth         DateTime
-  address             String
-  emergencyContact    String
-  passwordHash        String
-  status              MemberStatus @default(ACTIVE)
+  id               String       @id @default(cuid())
+  fullName         String
+  phone            String       @unique
+  whatsappNumber   String?
+  ghanaCardNumber  String?      @unique
+  dateOfBirth      DateTime
+  address          String
+  emergencyContact String
+  passwordHash     String
+  status           MemberStatus @default(ACTIVE)
   preferredPayoutWeek Int?
-
+  profilePicture   String?      // <-- ADD THIS LINE
+  
+  // ... rest of the model remains the same
   groupId String
   group   Group  @relation(fields: [groupId], references: [id])
 
